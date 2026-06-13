@@ -11,7 +11,34 @@ const FL={"Mexico":"🇲🇽","South Africa":"🇿🇦","South Korea":"🇰🇷"
 const PT={"Mexico":"México","South Africa":"África do Sul","South Korea":"Coreia do Sul","Czechia":"Tchéquia","Czech Republic":"Tchéquia","Canada":"Canadá","Bosnia and Herzegovina":"Bósnia-Herz.","Bosnia":"Bósnia-Herz.","Qatar":"Catar","Switzerland":"Suíça","Brazil":"Brasil","Morocco":"Marrocos","Haiti":"Haiti","Scotland":"Escócia","Australia":"Austrália","Türkiye":"Turquia","Turkey":"Turquia","United States":"EUA","Paraguay":"Paraguai","Germany":"Alemanha","Curacao":"Curaçao","Curaçao":"Curaçao","Netherlands":"Países Baixos","Japan":"Japão","Ivory Coast":"Costa do Marfim","Côte d'Ivoire":"Costa do Marfim","Ecuador":"Equador","Sweden":"Suécia","Tunisia":"Tunísia","Spain":"Espanha","Cape Verde":"Cabo Verde","Belgium":"Bélgica","Egypt":"Egito","Saudi Arabia":"Arábia Saudita","Uruguay":"Uruguai","Iran":"Irã","New Zealand":"Nova Zelândia","Austria":"Áustria","Jordan":"Jordânia","France":"França","Senegal":"Senegal","Iraq":"Iraque","Norway":"Noruega","Argentina":"Argentina","Algeria":"Argélia","Portugal":"Portugal","DR Congo":"RD Congo","Congo DR":"RD Congo","England":"Inglaterra","Croatia":"Croácia","Ghana":"Gana","Panama":"Panamá","Uzbekistan":"Uzbequistão","Colombia":"Colômbia","Korea Republic":"Coreia do Sul"};
 const fl=n=>FL[n]||"🏳️";
 const pt=n=>PT[n]||n;
-function nm(a,b){if(!a||!b)return false;const al=a.toLowerCase().trim(),bl=b.toLowerCase().trim();if(al===bl)return true;return al.includes(bl.slice(0,6))||bl.includes(al.slice(0,6));}
+
+// Normalização forte de nomes: evita casar "South Africa" com "South Korea".
+const ALIAS={
+  "korea republic":"south korea","republic of korea":"south korea","south korea":"south korea",
+  "czech republic":"czechia","czechia":"czechia",
+  "turkey":"turkiye","turkiye":"turkiye","türkiye":"turkiye",
+  "usa":"united states","usmnt":"united states","united states":"united states",
+  "cote divoire":"ivory coast","côte divoire":"ivory coast","cote d ivoire":"ivory coast","ivory coast":"ivory coast",
+  "dr congo":"dr congo","congo dr":"dr congo","d r congo":"dr congo",
+  "curacao":"curacao","curaçao":"curacao",
+  "bosnia":"bosnia and herzegovina","bosnia herzegovina":"bosnia and herzegovina","bosnia and herzegovina":"bosnia and herzegovina"
+};
+function normName(v){
+  return String(v||"")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase()
+    .replace(/&/g," and ")
+    .replace(/[^a-z0-9]+/g," ")
+    .trim();
+}
+function canon(v){
+  const n=normName(v);
+  return ALIAS[n]||n;
+}
+function nm(a,b){
+  if(!a||!b)return false;
+  return canon(a)===canon(b);
+}
 
 let WC_GAMES=[],WC_GROUPS=[],WC_SCORERS=[],OFB_DATA=null,FD_SC=[];
 let wcOk=false,ofbOk=false,fdOk=false;
@@ -49,11 +76,41 @@ async function fetchWCScorers(){try{const r=await fetch(WC+"/get/scorers",{signa
 async function fetchOFB(){try{const r=await fetch(OFB,{signal:AbortSignal.timeout(9000)});if(!r.ok)throw 0;OFB_DATA=await r.json();ofbOk=true;}catch(e){console.warn("OFB:",e);ofbOk=false;}}
 async function fetchFD(){try{const r=await fetch(FD+"/competitions/WC/scorers?season=2026&limit=20",{headers:{"X-Auth-Token":FDK},signal:AbortSignal.timeout(9000)});if(!r.ok)throw 0;const d=await r.json();FD_SC=d.scorers||[];fdOk=true;}catch(e){fdOk=false;}}
 
-function wcGame(h,a){return WC_GAMES.find(g=>nm(g.home_team_name_en||g.home_team,h)&&nm(g.away_team_name_en||g.away_team,a));}
-function ofbMatch(h,a){if(!OFB_DATA||!OFB_DATA.matches)return null;return OFB_DATA.matches.find(m=>nm(m.team1,h)&&nm(m.team2,a));}
-
-function mData(m){const g=wcGame(m.h,m.a);if(!g)return null;return{hs:g.home_score??g.home_goals??null,as:g.away_score??g.away_goals??null,st:g._st,min:g._min};}
-function mSt(m){const d=mData(m);if(d)return d.st;const now=new Date();const[h,mi]=(m.t||"00:00").split(":").map(Number);const kick=new Date(m.d+"T12:00:00");kick.setHours(h,mi,0);const end=new Date(kick.getTime()+110*60000);if(now>end)return"finished";if(now>=kick)return"live";return"upcoming";}
+function wcGame(h,a){
+  return WC_GAMES.find(g=>nm(g.home_team_name_en||g.home_team,h)&&nm(g.away_team_name_en||g.away_team,a));
+}
+function ofbMatch(h,a){
+  if(!OFB_DATA||!OFB_DATA.matches)return null;
+  return OFB_DATA.matches.find(m=>nm(m.team1,h)&&nm(m.team2,a));
+}
+function matchKick(m){
+  const[h,mi]=(m.t||"00:00").split(":").map(Number);
+  const kick=new Date(m.d+"T12:00:00");
+  kick.setHours(h||0,mi||0,0,0);
+  return kick;
+}
+function fallbackStatus(m){
+  const now=new Date(),kick=matchKick(m),end=new Date(kick.getTime()+130*60000);
+  if(now>end)return"finished";
+  if(now>=kick)return"live";
+  return"upcoming";
+}
+function mData(m){
+  const g=wcGame(m.h,m.a);
+  if(!g)return null;
+  const hs=g.home_score??g.home_goals??g.homeTeamScore??g.home_score_current??null;
+  const as=g.away_score??g.away_goals??g.awayTeamScore??g.away_score_current??null;
+  const hasScore=hs!==null&&hs!==undefined&&as!==null&&as!==undefined&&hs!==""&&as!=="";
+  const apiSt=g._st||"upcoming";
+  // Se a API achou o jogo, mas veio atrasada/sem placar, não deixe ela sobrescrever o calendário local.
+  const st=hasScore||apiSt==="live"?apiSt:fallbackStatus(m);
+  return{hs,as,hasScore,st,min:g._min};
+}
+function mSt(m){
+  const d=mData(m);
+  if(d)return d.st;
+  return fallbackStatus(m);
+}
 function getMin(m,d){if(!d)return"";if(d.min)return d.min;const e=estMin(m.d,m.t);if(e===null)return"";if(isHT(m.d,m.t))return"Intervalo";return e+"'";}
 function tPct(m,d){if(!d)return 0;const mn=d.min?parseInt(d.min):null;if(mn&&!isNaN(mn))return Math.min(100,Math.round(mn/90*100));const e=estMin(m.d,m.t);return e?Math.min(100,Math.round(e/90*100)):0;}
 
@@ -229,7 +286,7 @@ function calcGroup(gl){
   [...new Set([...gm.map(m=>m.h),...gm.map(m=>m.a)])].forEach(t=>{ts[t]={j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,form:[],live:false};});
   gm.forEach(m=>{
     const data=mData(m);const st=data?data.st:mSt(m);
-    if((st==="finished"||st==="live")&&data&&data.hs!=null&&data.as!=null){
+    if((st==="finished"||st==="live")&&data&&data.hasScore){
       const hs=+data.hs,as=+data.as;
       if(!ts[m.h]||!ts[m.a])return;
       ts[m.h].j++;ts[m.a].j++;
@@ -249,7 +306,7 @@ function renderGrupos(){
   let html=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--green);padding:2px 2px 10px">✓ Dados ao vivo: worldcup26.ir</div>`;
   ["A","B","C","D","E","F","G","H","I","J","K","L"].forEach(gl=>{
     const gm=F.filter(m=>m.g===gl&&m.ph==="grupos");
-    const played=gm.filter(m=>mSt(m)==="finished").length;
+    const played=gm.filter(m=>{const d=mData(m);return mSt(m)==="finished"&&d&&d.hasScore;}).length;
     const hasLive=gm.some(m=>mSt(m)==="live");
     const rows=calcGroup(gl);
     const flagPrev=rows.map(r=>fl(r.nm)).join("");
@@ -394,58 +451,99 @@ let tY=0;
 document.getElementById("modalBox").addEventListener("touchstart",e=>{tY=e.touches[0].clientY;},{passive:true});
 document.getElementById("modalBox").addEventListener("touchmove",e=>{if(e.touches[0].clientY-tY>70){document.getElementById("modalOverlay").classList.remove("on");document.body.style.overflow="";}},{passive:true});
 
+function bookingsOf(ofb,side){
+  if(!ofb)return[];
+  const keys=side==="home"
+    ?["bookings1","cards1","yellow_cards1","red_cards1"]
+    :["bookings2","cards2","yellow_cards2","red_cards2"];
+  return keys.flatMap(k=>Array.isArray(ofb[k])?ofb[k]:[]);
+}
+function cardType(b){
+  const raw=String(b.card||b.type||b.event||b.reason||"yellow").toLowerCase();
+  if(raw.includes("red")||raw.includes("vermelho"))return"red";
+  return"yellow";
+}
+function allPlayedMatches(){
+  return F.filter(m=>{
+    const d=mData(m);
+    return m.ph==="grupos" && mSt(m)==="finished" && d && d.hasScore;
+  });
+}
 function renderStats(){
-  const played=F.filter(m=>mSt(m)==="finished").length;
+  const playedMatches=allPlayedMatches();
+  const played=playedMatches.length;
   const lc=liveCount();
-  // Gols via OFB
-  let totalG=0,scorersMap={};
-  if(ofbOk&&OFB_DATA&&OFB_DATA.matches){
-    OFB_DATA.matches.forEach(m=>{
-      (m.goals1||[]).forEach(g=>{totalG++;if(!g.owngoal){const k=g.name;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team1});scorersMap[k].goals++;}});
-      (m.goals2||[]).forEach(g=>{totalG++;if(!g.owngoal){const k=g.name;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team2});scorersMap[k].goals++;}});
-    });
-  }else{
-    WC_GAMES.filter(g=>g._st==="finished").forEach(g=>{totalG+=(+g.home_score||0)+(+g.away_score||0);});
-  }
-  const avg=played>0?(totalG/played).toFixed(1):"—";
+
+  let totalG=0,scorersMap={},cardsY=0,cardsR=0,cleanSheets=0,bigWins=[];
+  playedMatches.forEach(m=>{
+    const d=mData(m);
+    const hs=+d.hs,as=+d.as;
+    totalG+=hs+as;
+    if(hs===0)cleanSheets++;
+    if(as===0)cleanSheets++;
+    bigWins.push({m,diff:Math.abs(hs-as),score:`${hs}-${as}`});
+
+    const ofb=ofbMatch(m.h,m.a);
+    if(ofb){
+      (ofb.goals1||[]).forEach(g=>{if(!g.owngoal){const k=canon(g.name)+"|"+canon(m.h);scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.h});scorersMap[k].goals++;}});
+      (ofb.goals2||[]).forEach(g=>{if(!g.owngoal){const k=canon(g.name)+"|"+canon(m.a);scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.a});scorersMap[k].goals++;}});
+      [...bookingsOf(ofb,"home"),...bookingsOf(ofb,"away")].forEach(b=>cardType(b)==="red"?cardsR++:cardsY++);
+    }
+  });
+
+  const avg=played>0?(totalG/played).toFixed(2):"—";
+  const avgCards=played>0?((cardsY+cardsR)/played).toFixed(2):"—";
   const pct=Math.round(played/104*100);
-  // Scorers: OFB > WC > FD
+
   let sList=[];
-  if(Object.keys(scorersMap).length>0)sList=Object.values(scorersMap).sort((a,b)=>b.goals-a.goals).slice(0,15);
+  if(Object.keys(scorersMap).length>0)sList=Object.values(scorersMap).sort((a,b)=>b.goals-a.goals||a.name.localeCompare(b.name)).slice(0,15);
   else if(WC_SCORERS.length>0)sList=WC_SCORERS.slice(0,15).map(s=>({name:s.player_name||s.name||"-",goals:s.goals||0,team:s.team_name||s.team||""}));
   else if(fdOk&&FD_SC.length)sList=FD_SC.slice(0,15).map(s=>({name:s.player?.name||"-",goals:s.goals||0,team:s.team?.name||""}));
-  // Team stats
+
   let teamSt=[];
   ["A","B","C","D","E","F","G","H","I","J","K","L"].forEach(gl=>{
     const rows=calcGroup(gl);
     rows.filter(t=>t.j>0).forEach(t=>{
       let yc=0,rc=0;
       F.filter(m=>m.g===gl&&m.ph==="grupos"&&mSt(m)==="finished").forEach(m=>{
-        const ofb=ofbMatch(m.h,m.a);
-        if(ofb){
-          const isH=nm(m.h,t.nm)||nm(t.nm,m.h);
-          const bk=isH?(ofb.bookings1||[]):(ofb.bookings2||[]);
-          yc+=bk.filter(b=>!b.card||b.card.toLowerCase().includes("yellow")).length;
-          rc+=bk.filter(b=>b.card&&b.card.toLowerCase().includes("red")).length;
+        const ofb=ofbMatch(m.h,m.a),d=mData(m);
+        if(ofb&&d&&d.hasScore){
+          const isH=nm(m.h,t.nm);
+          bookingsOf(ofb,isH?"home":"away").forEach(b=>cardType(b)==="red"?rc++:yc++);
         }
       });
-      teamSt.push({...t,yc,rc});
+      const ppg=t.j?(t.pts/t.j).toFixed(2):"0.00";
+      const gpg=t.j?(t.gp/t.j).toFixed(2):"0.00";
+      teamSt.push({...t,yc,rc,ppg,gpg});
     });
   });
-  const topAtk=[...teamSt].sort((a,b)=>b.gp-a.gp).slice(0,10);
-  const topDef=[...teamSt].sort((a,b)=>a.gc-b.gc||b.j-a.j).slice(0,10);
+
+  const topAtk=[...teamSt].sort((a,b)=>b.gp-a.gp||b.sg-a.sg).slice(0,10);
+  const topDef=[...teamSt].sort((a,b)=>a.gc-b.gc||b.sg-a.sg).slice(0,10);
   const topDis=[...teamSt].sort((a,b)=>(b.yc+b.rc*3)-(a.yc+a.rc*3)).filter(t=>t.yc+t.rc>0).slice(0,10);
+  const topEff=[...teamSt].sort((a,b)=>b.ppg-a.ppg||b.sg-a.sg).slice(0,10);
+  bigWins=bigWins.sort((a,b)=>b.diff-a.diff).slice(0,5);
+
   const maxGP=topAtk[0]?.gp||1;
-  const src=ofbOk?"openfootball":wcOk?"worldcup26.ir":"football-data.org";
-  let sH=sList.length?sList.map((s,i)=>{const fk=Object.keys(FL).find(k=>nm(k,s.team));const flag=fk?fl(fk):"🏳️";const tk=Object.keys(PT).find(k=>nm(k,s.team));const tPT=tk?pt(tk):(s.team||"-");return`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${flag}</div><div class="li-inf"><div class="li-nm">${s.name}</div><div class="li-sb">${tPT}</div></div><div class="li-val">${s.goals} ⚽</div></div>`;}).join(""):'<div class="no-data">Disponivel apos os primeiros gols</div>';
-  let aH=topAtk.length?topAtk.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) - SG ${t.sg>0?"+":""}${t.sg}</div><div class="li-bar-wrap" style="margin-top:4px"><div class="li-bar" style="width:${Math.round(t.gp/maxGP*100)}%"></div></div></div><div class="li-val">${t.gp}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
-  let dH=topDef.filter(t=>t.j>0).length?topDef.filter(t=>t.j>0).map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) - GP ${t.gp}</div></div><div class="li-val" style="color:var(--green)">${t.gc}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
-  let disH=topDis.length?topDis.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s)</div></div><div class="li-cards">${"<span class='yc'></span>".repeat(Math.min(t.yc,5))}${"<span class='rc'></span>".repeat(Math.min(t.rc,3))}</div></div>`).join(""):'<div class="no-data">Dados de cartoes via openfootball</div>';
+  const src=wcOk?"worldcup26.ir":ofbOk?"openfootball":"football-data.org";
+  const teamName=s=>{const fk=Object.keys(FL).find(k=>nm(k,s.team));const flag=fk?fl(fk):"🏳️";const tk=Object.keys(PT).find(k=>nm(k,s.team));return{flag,tPT:tk?pt(tk):(s.team||"-")};};
+
+  let sH=sList.length?sList.map((s,i)=>{const {flag,tPT}=teamName(s);return`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${flag}</div><div class="li-inf"><div class="li-nm">${s.name}</div><div class="li-sb">${tPT}</div></div><div class="li-val">${s.goals} ⚽</div></div>`;}).join(""):'<div class="no-data">Disponivel apos os primeiros gols cadastrados na fonte de eventos</div>';
+  let aH=topAtk.length?topAtk.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) · ${t.gpg} gol/jogo · SG ${t.sg>0?"+":""}${t.sg}</div><div class="li-bar-wrap" style="margin-top:4px"><div class="li-bar" style="width:${Math.round(t.gp/maxGP*100)}%"></div></div></div><div class="li-val">${t.gp}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
+  let dH=topDef.length?topDef.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) · GP ${t.gp} · SG ${t.sg>0?"+":""}${t.sg}</div></div><div class="li-val" style="color:var(--green)">${t.gc}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
+  let effH=topEff.length?topEff.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.pts} pts em ${t.j} jogo(s)</div></div><div class="li-val">${t.ppg}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
+  let disH=topDis.length?topDis.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.yc} amarelo(s) · ${t.rc} vermelho(s)</div></div><div class="li-val">${t.yc}🟨 ${t.rc}🟥</div></div>`).join(""):'<div class="no-data">Cartões ainda não disponíveis na fonte de eventos</div>';
+  let goleadasH=bigWins.length?bigWins.map((x,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(x.m.h)}${fl(x.m.a)}</div><div class="li-inf"><div class="li-nm">${pt(x.m.h)} x ${pt(x.m.a)}</div><div class="li-sb">${x.m.d.split("-").reverse().join("/")}</div></div><div class="li-val">${x.score}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
+
   return`<div class="kpi-grid">
-  <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
+  <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos com placar</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${lc?"var(--live)":"var(--gold)"}">${lc}</div><div class="kpi-l" style="color:${lc?"var(--live)":""}">Ao vivo agora</div></div>
   <div class="kpi"><div class="kpi-n">${totalG}</div><div class="kpi-l">Total de gols</div></div>
-  <div class="kpi"><div class="kpi-n">${avg}</div><div class="kpi-l">Media gols/jogo</div></div>
+  <div class="kpi"><div class="kpi-n">${avg}</div><div class="kpi-l">Gols por jogo</div></div>
+  <div class="kpi"><div class="kpi-n">${cardsY}</div><div class="kpi-l">Cartões amarelos</div></div>
+  <div class="kpi"><div class="kpi-n">${cardsR}</div><div class="kpi-l">Cartões vermelhos</div></div>
+  <div class="kpi"><div class="kpi-n">${cleanSheets}</div><div class="kpi-l">Clean sheets</div></div>
+  <div class="kpi"><div class="kpi-n">${avgCards}</div><div class="kpi-l">Cartões por jogo</div></div>
   <div class="kpi wide">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
       <div class="kpi-l" style="margin:0">Progresso - <span style="color:var(--green);font-size:9px">✓ ${src}</span></div>
@@ -455,25 +553,25 @@ function renderStats(){
     <div class="kpi-sub">${pct}% - Copa: 11 Jun - 19 Jul 2026</div>
   </div>
 </div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>ARTILHEIROS</h3><span class="api-src">${sList.length>0?"✓ "+src:"aguardando..."}</span></div>${sH}</div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">🥅</span><h3>MAIORES ATAQUES</h3><span class="api-src">${played>0?"✓ worldcup26.ir":"aguardando..."}</span></div>${aH}</div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">🛡️</span><h3>MELHORES DEFESAS</h3><span class="api-src">${played>0?"✓ worldcup26.ir":"aguardando..."}</span></div>${dH}</div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA</h3><span class="api-src">${ofbOk&&played>0?"✓ openfootball":"aguardando..."}</span></div>${disH}
-<div style="padding:9px 13px;border-top:1px solid var(--border2);font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text3)">🟨 2 amarelos = suspensao - 🟥 Vermelho = proximo jogo suspenso</div></div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>ARTILHEIROS</h3><span class="api-src">${sList.length>0?"✓ eventos":"aguardando..."}</span></div>${sH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">📈</span><h3>MELHOR APROVEITAMENTO</h3><span class="api-src">${played>0?"✓ calculado":"aguardando..."}</span></div>${effH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🥅</span><h3>MAIORES ATAQUES</h3><span class="api-src">${played>0?"✓ calculado":"aguardando..."}</span></div>${aH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🛡️</span><h3>MELHORES DEFESAS</h3><span class="api-src">${played>0?"✓ calculado":"aguardando..."}</span></div>${dH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🔥</span><h3>MAIORES PLACARES / GOLEADAS</h3><span class="api-src">${played>0?"✓ calculado":"aguardando..."}</span></div>${goleadasH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA</h3><span class="api-src">${ofbOk&&played>0?"✓ eventos":"aguardando..."}</span></div>${disH}
+<div style="padding:9px 13px;border-top:1px solid var(--border2);font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text3)">A disciplina depende da fonte de eventos. Quando a fonte não informa cartões, o app mostra explicitamente indisponível em vez de zerar como se não houvesse cartões.</div></div>
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📋</span><h3>SOBRE O TORNEIO</h3></div>
 <table class="info-tbl">
-  <tr><td>Edicao</td><td>23a Copa do Mundo FIFA</td></tr>
-  <tr><td>Paises sede</td><td>🇺🇸 EUA - 🇨🇦 Canada - 🇲🇽 Mexico</td></tr>
-  <tr><td>Selecoes</td><td>48 - 12 grupos de 4</td></tr>
+  <tr><td>Edição</td><td>23ª Copa do Mundo FIFA</td></tr>
+  <tr><td>Países sede</td><td>🇺🇸 EUA · 🇨🇦 Canadá · 🇲🇽 México</td></tr>
+  <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
-  <tr><td>Abertura</td><td>11 Jun - Cidade do Mexico</td></tr>
-  <tr><td>Final</td><td>19 Jul - MetLife, Nova York</td></tr>
-  <tr><td>🇧🇷 Brasil - Grupo C</td><td>🇧🇷🇲🇦🇭🇹🏴󠁧󠁢󠁳󠁣󠁴󠁿</td></tr>
-  <tr><td>Placares ao vivo</td><td style="color:var(--gold)">worldcup26.ir</td></tr>
-  <tr><td>Gols e cartoes</td><td style="color:var(--gold)">openfootball.github.io</td></tr>
+  <tr><td>Abertura</td><td>11 Jun · Cidade do México</td></tr>
+  <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
+  <tr><td>Fonte de placares</td><td style="color:var(--gold)">worldcup26.ir</td></tr>
+  <tr><td>Fonte de eventos</td><td style="color:var(--gold)">openfootball / football-data</td></tr>
   <tr><td>Criado por</td><td style="color:var(--gold)">Pscheidt</td></tr>
-</table></div>
-<div class="src">Placares: <a href="https://worldcup26.ir">worldcup26.ir</a> - Eventos: <a href="https://github.com/openfootball/worldcup.json">openfootball</a> - Artilheiros: <a href="https://football-data.org">football-data.org</a></div>`;
+</table></div>`;
 }
 
 function goPage(pg){curPage=pg;document.querySelectorAll(".pg").forEach(el=>el.classList.remove("on"));document.getElementById("pg-"+pg).classList.add("on");document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));document.getElementById("nav-"+pg).classList.add("active");document.getElementById("tabBar").style.display=pg==="jogos"?"flex":"none";render();}
