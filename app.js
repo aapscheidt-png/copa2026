@@ -40,6 +40,19 @@ function nm(a,b){
   return canon(a)===canon(b);
 }
 
+
+// Correção de segurança: resultados já concluídos conhecidos.
+// Usado somente se a API vier atrasada, sem placar ou sem encontrar o jogo.
+// Evita jogo encerrado aparecer como "a acontecer" e evita tabela errada.
+const FALLBACK_RESULTS = {
+  "mexico|south africa": {hs:2, as:0, st:"finished"},
+  "south korea|czechia": {hs:2, as:1, st:"finished"},
+  "canada|bosnia and herzegovina": {hs:1, as:1, st:"finished"},
+  "united states|paraguay": {hs:4, as:1, st:"finished"},
+  "qatar|switzerland": {hs:1, as:1, st:"finished"}
+};
+function matchKey(h,a){return `${canon(h)}|${canon(a)}`;}
+
 let WC_GAMES=[],WC_GROUPS=[],WC_SCORERS=[],OFB_DATA=null,FD_SC=[];
 let wcOk=false,ofbOk=false,fdOk=false;
 let curPage="jogos",curFilter="all";
@@ -96,15 +109,27 @@ function fallbackStatus(m){
   return"upcoming";
 }
 function mData(m){
-  const g=wcGame(m.h,m.a);
-  if(!g)return null;
-  const hs=g.home_score??g.home_goals??g.homeTeamScore??g.home_score_current??null;
-  const as=g.away_score??g.away_goals??g.awayTeamScore??g.away_score_current??null;
-  const hasScore=hs!==null&&hs!==undefined&&as!==null&&as!==undefined&&hs!==""&&as!=="";
-  const apiSt=g._st||"upcoming";
-  // Se a API achou o jogo, mas veio atrasada/sem placar, não deixe ela sobrescrever o calendário local.
-  const st=hasScore||apiSt==="live"?apiSt:fallbackStatus(m);
-  return{hs,as,hasScore,st,min:g._min};
+  const fb = FALLBACK_RESULTS[matchKey(m.h,m.a)];
+  const g = wcGame(m.h,m.a);
+
+  if(!g){
+    if(fb) return {hs:fb.hs, as:fb.as, hasScore:true, st:"finished", min:null, source:"fallback"};
+    return null;
+  }
+
+  let hs = g.home_score ?? g.home_goals ?? g.homeTeamScore ?? g.home_score_current ?? null;
+  let as = g.away_score ?? g.away_goals ?? g.awayTeamScore ?? g.away_score_current ?? null;
+  let hasScore = hs!==null && hs!==undefined && as!==null && as!==undefined && hs!=="" && as!=="";
+  let apiSt = g._st || "upcoming";
+
+  // Se a API encontrou o jogo, mas veio sem placar ou atrasada, aplica fallback do jogo já encerrado.
+  if((!hasScore || apiSt==="upcoming") && fb){
+    hs = fb.hs; as = fb.as; hasScore = true; apiSt = "finished";
+  }
+
+  // Se a API vier sem placar e sem fallback, o calendário local define o status.
+  const st = hasScore || apiSt==="live" ? apiSt : fallbackStatus(m);
+  return {hs, as, hasScore, st, min:g._min, source:fb && apiSt==="finished" ? "fallback" : "api"};
 }
 function mSt(m){
   const d=mData(m);
