@@ -240,6 +240,35 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 .stat-tabs-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
 .stat-tabs-note b{color:var(--gold)}
 
+
+/* V8 - Stats+ e jogo ao vivo avançado */
+.stats-version{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
+.disc-table{width:100%;border-collapse:collapse;font-family:'Barlow Condensed',sans-serif}
+.disc-table th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;text-align:center;padding:8px 6px;border-bottom:1px solid var(--border2)}
+.disc-table th:first-child{text-align:left;padding-left:12px}
+.disc-table td{font-size:13px;color:var(--text);font-weight:700;text-align:center;padding:9px 6px;border-bottom:1px solid rgba(255,255,255,.035)}
+.disc-table td:first-child{text-align:left;padding-left:12px}
+.disc-team{display:flex;align-items:center;gap:7px;min-width:0}
+.disc-rk{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text3);width:18px;text-align:center}
+.disc-rk.top{color:var(--gold)}
+.disc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-pill{display:inline-flex;align-items:center;gap:4px;justify-content:center}
+.cardbox{display:inline-block;width:10px;height:14px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.cardbox.y{background:var(--ycard)}
+.cardbox.r{background:var(--rcard)}
+.poss-wrap{background:var(--dark3);border-radius:10px;padding:10px 12px}
+.poss-row{display:flex;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;margin-bottom:6px}
+.poss-bar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,.07)}
+.poss-h{background:var(--gold)}
+.poss-a{background:var(--live)}
+.live-columns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.team-box{background:var(--dark3);border-radius:10px;padding:9px}
+.team-box-title{font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;margin-bottom:6px}
+.player-line{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.025)}
+.player-line:last-child{border-bottom:none}
+.stat-source-warning{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:9px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
+.stat-source-warning b{color:var(--gold)}
+
 </style>
 </head>
 <body>
@@ -305,6 +334,6 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 </nav>
 
 <!-- JAVASCRIPT EXTERNO -->
-<script src="app.js"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
