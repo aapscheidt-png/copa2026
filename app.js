@@ -548,83 +548,224 @@ function espnDetailsFor(m){const e=espnGame(m.h,m.a);if(!e)return[];const s=ESPN
 function espnCardsFor(m,side){const team=side==="home"?m.h:m.a;return espnDetailsFor(m).filter(d=>{const txt=String(d.type?.text||d.type?.displayName||d.text||"").toLowerCase();const tm=d.team?.displayName||d.team?.name||d.team?.abbreviation||"";return (txt.includes("yellow")||txt.includes("red")||txt.includes("card"))&&(!tm||nm(tm,team));}).map(d=>({name:d.athletes?.[0]?.displayName||d.participants?.[0]?.athlete?.displayName||d.text||"Cartão",minute:d.clock?.displayValue||d.minute||"?",card:String(d.type?.text||d.type?.displayName||d.text||"yellow").toLowerCase().includes("red")?"red":"yellow"}));}
 function cardsForMatch(m,side){const ofb=ofbMatch(m.h,m.a);let cards=[];if(ofb){const arr=side==="home"?(ofb.bookings1||ofb.cards1||[]):(ofb.bookings2||ofb.cards2||[]);cards.push(...arr);}cards.push(...espnCardsFor(m,side));const ov=overrideEvents(m).cards||[];const team=side==="home"?m.h:m.a;cards.push(...ov.filter(c=>nm(c.team,team)));const seen=new Set();return cards.filter(c=>{const k=`${canon(c.name)}|${c.minute||"?"}|${cardType(c)}`;if(seen.has(k))return false;seen.add(k);return true;});}
 
+
+function cardPlayerNameV7(c){return c.name||c.player||c.athlete||c.displayName||c.text||"Jogador não informado";}
+function cardMinuteV7(c){return c.minute||c.time||c.clock||"?";}
+
 function renderStats(){
-  const played=F.filter(m=>{const d=mData(m);return mSt(m)==="finished"&&d&&d.hasScore;}).length;
-  const lc=liveCount();
-  // Gols via OFB
-  let totalG=0,scorersMap={};
-  if(ofbOk&&OFB_DATA&&OFB_DATA.matches){
-    OFB_DATA.matches.forEach(m=>{
-      (m.goals1||[]).forEach(g=>{totalG++;if(!g.owngoal){const k=g.name;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team1});scorersMap[k].goals++;}});
-      (m.goals2||[]).forEach(g=>{totalG++;if(!g.owngoal){const k=g.name;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team2});scorersMap[k].goals++;}});
-    });
-  }else{
-    WC_GAMES.filter(g=>g._st==="finished").forEach(g=>{totalG+=(+g.home_score||0)+(+g.away_score||0);});
-  }
-  const avg=played>0?(totalG/played).toFixed(1):"—";
-  const pct=Math.round(played/104*100);
-  // Scorers: OFB > WC > FD
-  let sList=[];
-  if(Object.keys(scorersMap).length>0)sList=Object.values(scorersMap).sort((a,b)=>b.goals-a.goals).slice(0,15);
-  else if(WC_SCORERS.length>0)sList=WC_SCORERS.slice(0,15).map(s=>({name:s.player_name||s.name||"-",goals:s.goals||0,team:s.team_name||s.team||""}));
-  else if(fdOk&&FD_SC.length)sList=FD_SC.slice(0,15).map(s=>({name:s.player?.name||"-",goals:s.goals||0,team:s.team?.name||""}));
-  // Team stats
-  let teamSt=[];
-  ["A","B","C","D","E","F","G","H","I","J","K","L"].forEach(gl=>{
-    const rows=calcGroup(gl);
-    rows.filter(t=>t.j>0).forEach(t=>{
-      let yc=0,rc=0;
-      F.filter(m=>m.g===gl&&m.ph==="grupos"&&mSt(m)!=="upcoming").forEach(m=>{
-        const isH=nm(m.h,t.nm);
-        const cs=cardsForMatch(m,isH?"home":"away");
-        yc+=cs.filter(b=>cardType(b)==="yellow").length;
-        rc+=cs.filter(b=>cardType(b)==="red").length;
+  const considered = F.filter(m=>{
+    const d=mData(m);
+    const st=mSt(m);
+    return (st==="finished"||st==="live") && d && d.hasScore;
+  });
+
+  const finished = F.filter(m=>{
+    const d=mData(m);
+    return mSt(m)==="finished" && d && d.hasScore;
+  });
+
+  const played=finished.length;
+  const liveNow=F.filter(m=>mSt(m)==="live").length;
+
+  // Estatísticas por seleção
+  const teams={};
+  F.filter(m=>m.ph==="grupos").forEach(m=>{
+    if(!teams[m.h])teams[m.h]={nm:m.h,j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,cs:0,yc:0,rc:0};
+    if(!teams[m.a])teams[m.a]={nm:m.a,j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,cs:0,yc:0,rc:0};
+  });
+
+  finished.forEach(m=>{
+    const data=mData(m);
+    if(!data||!data.hasScore)return;
+    const hs=+data.hs, as=+data.as;
+    if(!teams[m.h])teams[m.h]={nm:m.h,j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,cs:0,yc:0,rc:0};
+    if(!teams[m.a])teams[m.a]={nm:m.a,j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,cs:0,yc:0,rc:0};
+    const h=teams[m.h], a=teams[m.a];
+
+    h.j++; a.j++;
+    h.gp+=hs; h.gc+=as; h.sg+=hs-as;
+    a.gp+=as; a.gc+=hs; a.sg+=as-hs;
+    if(as===0)h.cs++;
+    if(hs===0)a.cs++;
+
+    if(hs>as){h.v++;h.pts+=3;a.d++;}
+    else if(hs<as){a.v++;a.pts+=3;h.d++;}
+    else{h.e++;a.e++;h.pts++;a.pts++;}
+  });
+
+  // Cartões: seleção + jogador
+  const cardTeamMap={};
+  const cardPlayerMap={};
+  F.filter(m=>mSt(m)!=="upcoming").forEach(m=>{
+    ["home","away"].forEach(side=>{
+      const team = side==="home"?m.h:m.a;
+      const cards = cardsForMatch(m,side);
+      if(!cardTeamMap[team])cardTeamMap[team]={nm:team,yc:0,rc:0,total:0,pts:0};
+      cards.forEach(c=>{
+        const type=cardType(c);
+        const player=cardPlayerNameV7(c);
+        const key=canon(player)+"|"+canon(team);
+        if(!cardPlayerMap[key])cardPlayerMap[key]={name:player,team:team,yc:0,rc:0,total:0,pts:0,mins:[]};
+
+        if(type==="red"){
+          cardTeamMap[team].rc++;
+          cardTeamMap[team].total++;
+          cardTeamMap[team].pts+=3;
+          cardPlayerMap[key].rc++;
+          cardPlayerMap[key].total++;
+          cardPlayerMap[key].pts+=3;
+        }else{
+          cardTeamMap[team].yc++;
+          cardTeamMap[team].total++;
+          cardTeamMap[team].pts+=1;
+          cardPlayerMap[key].yc++;
+          cardPlayerMap[key].total++;
+          cardPlayerMap[key].pts+=1;
+        }
+        cardPlayerMap[key].mins.push(cardMinuteV7(c));
       });
-      teamSt.push({...t,yc,rc});
     });
   });
-  const topAtk=[...teamSt].sort((a,b)=>b.gp-a.gp).slice(0,10);
-  const topDef=[...teamSt].sort((a,b)=>a.gc-b.gc||b.j-a.j).slice(0,10);
-  const topDis=[...teamSt].sort((a,b)=>(b.yc+b.rc*3)-(a.yc+a.rc*3)).filter(t=>t.yc+t.rc>0).slice(0,10);
+
+  Object.values(cardTeamMap).forEach(t=>{
+    if(teams[t.nm]){
+      teams[t.nm].yc=t.yc;
+      teams[t.nm].rc=t.rc;
+    }
+  });
+
+  const teamSt=Object.values(teams).filter(t=>t.j>0);
+  const totalG=finished.reduce((sum,m)=>{const d=mData(m);return sum+(+d.hs||0)+(+d.as||0);},0);
+  const totalY=Object.values(cardTeamMap).reduce((s,t)=>s+t.yc,0);
+  const totalR=Object.values(cardTeamMap).reduce((s,t)=>s+t.rc,0);
+  const avg=played>0?(totalG/played).toFixed(1):"—";
+  const pct=Math.round(played/104*100);
+
+  // Artilheiros: openfootball + eventos locais
+  let scorersMap={};
+  if(ofbOk&&OFB_DATA&&OFB_DATA.matches){
+    OFB_DATA.matches.forEach(m=>{
+      (m.goals1||[]).forEach(g=>{if(!g.owngoal){const k=g.name+"|"+m.team1;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team1});scorersMap[k].goals++;}});
+      (m.goals2||[]).forEach(g=>{if(!g.owngoal){const k=g.name+"|"+m.team2;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team2});scorersMap[k].goals++;}});
+    });
+  }
+  F.filter(m=>mSt(m)!=="upcoming").forEach(m=>{
+    const ev=overrideEvents(m).goals||[];
+    ev.forEach(g=>{
+      const k=g.name+"|"+g.team;
+      scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:g.team});
+      // evita dobrar gols locais se openfootball já tiver o mesmo nome/time
+      if(!scorersMap[k]._localAdded){scorersMap[k].goals++;scorersMap[k]._localAdded=true;}
+    });
+  });
+
+  let sList=Object.values(scorersMap).sort((a,b)=>b.goals-a.goals).slice(0,12);
+  if(!sList.length && WC_SCORERS.length>0)sList=WC_SCORERS.slice(0,12).map(s=>({name:s.player_name||s.name||"-",goals:s.goals||0,team:s.team_name||s.team||""}));
+  if(!sList.length && fdOk&&FD_SC.length)sList=FD_SC.slice(0,12).map(s=>({name:s.player?.name||"-",goals:s.goals||0,team:s.team?.name||""}));
+
+  const topAtk=[...teamSt].sort((a,b)=>b.gp-a.gp||b.sg-a.sg).slice(0,10);
+  const topDef=[...teamSt].sort((a,b)=>a.gc-b.gc||b.cs-a.cs||b.j-a.j).slice(0,10);
+  const topCS=[...teamSt].sort((a,b)=>b.cs-a.cs||a.gc-b.gc).filter(t=>t.cs>0).slice(0,10);
+  const topPts=[...teamSt].sort((a,b)=>b.pts-a.pts||b.sg-a.sg).slice(0,10);
+  const cardTeams=[...Object.values(cardTeamMap)].sort((a,b)=>b.pts-a.pts||b.total-a.total||b.rc-a.rc).filter(t=>t.total>0).slice(0,12);
+  const cardPlayers=[...Object.values(cardPlayerMap)].sort((a,b)=>b.pts-a.pts||b.total-a.total||b.rc-a.rc).filter(p=>p.total>0).slice(0,12);
+  const yellowPlayers=[...Object.values(cardPlayerMap)].sort((a,b)=>b.yc-a.yc||b.rc-a.rc).filter(p=>p.yc>0).slice(0,10);
+  const redPlayers=[...Object.values(cardPlayerMap)].sort((a,b)=>b.rc-a.rc||b.yc-a.yc).filter(p=>p.rc>0).slice(0,10);
+
+  const biggest=finished.map(m=>{
+    const d=mData(m);const hs=+d.hs,as=+d.as;
+    return{m,hs,as,diff:Math.abs(hs-as),total:hs+as,winner:hs>as?m.h:as>hs?m.a:"Empate"};
+  }).sort((a,b)=>b.diff-a.diff||b.total-a.total).slice(0,8);
+
   const maxGP=topAtk[0]?.gp||1;
-  const src=ofbOk?"openfootball":wcOk?"worldcup26.ir":"football-data.org";
-  let sH=sList.length?sList.map((s,i)=>{const fk=Object.keys(FL).find(k=>nm(k,s.team));const flag=fk?fl(fk):"🏳️";const tk=Object.keys(PT).find(k=>nm(k,s.team));const tPT=tk?pt(tk):(s.team||"-");return`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${flag}</div><div class="li-inf"><div class="li-nm">${s.name}</div><div class="li-sb">${tPT}</div></div><div class="li-val">${s.goals} ⚽</div></div>`;}).join(""):'<div class="no-data">Disponivel apos os primeiros gols</div>';
-  let aH=topAtk.length?topAtk.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) - SG ${t.sg>0?"+":""}${t.sg}</div><div class="li-bar-wrap" style="margin-top:4px"><div class="li-bar" style="width:${Math.round(t.gp/maxGP*100)}%"></div></div></div><div class="li-val">${t.gp}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
-  let dH=topDef.filter(t=>t.j>0).length?topDef.filter(t=>t.j>0).map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) - GP ${t.gp}</div></div><div class="li-val" style="color:var(--green)">${t.gc}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
-  let disH=topDis.length?topDis.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s)</div></div><div class="li-cards">${"<span class='yc'></span>".repeat(Math.min(t.yc,5))}${"<span class='rc'></span>".repeat(Math.min(t.rc,3))}</div></div>`).join(""):'<div class="no-data">Cartões ainda não disponíveis nas fontes gratuitas</div>';
+  const src=ofbOk?"openfootball":wcOk?"worldcup26.ir":"modo local";
+
+  const teamFlag=(team)=>{const fk=Object.keys(FL).find(k=>nm(k,team));return fk?fl(fk):fl(team);};
+  const teamPT=(team)=>{const tk=Object.keys(PT).find(k=>nm(k,team));return tk?pt(tk):pt(team);};
+
+  let sH=sList.length?sList.map((s,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${teamFlag(s.team)}</div><div class="li-inf"><div class="li-nm">${s.name}</div><div class="li-sb">${teamPT(s.team||"-")}</div></div><div class="li-val">${s.goals} ⚽</div></div>`).join(""):'<div class="no-data">Disponível após os primeiros gols</div>';
+
+  let aH=topAtk.length?topAtk.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) · SG ${t.sg>0?"+":""}${t.sg}</div><div class="li-bar-wrap" style="margin-top:4px"><div class="li-bar" style="width:${Math.round(t.gp/maxGP*100)}%"></div></div></div><div class="li-val">${t.gp}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
+
+  let dH=topDef.length?topDef.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) · clean sheets ${t.cs}</div></div><div class="li-val" style="color:var(--green)">${t.gc}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
+
+  let csH=topCS.length?topCS.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) · gols sofridos ${t.gc}</div></div><div class="li-val" style="color:var(--green)">${t.cs}</div></div>`).join(""):'<div class="no-data">Nenhum clean sheet registrado ainda</div>';
+
+  let ptsH=topPts.length?topPts.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.v}V ${t.e}E ${t.d}D · SG ${t.sg>0?"+":""}${t.sg}</div></div><div class="li-val">${t.pts}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
+
+  let cardTeamH=cardTeams.length?cardTeams.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.total} cartão(ões) · critério: amarelo=1, vermelho=3</div></div><div class="card-score"><span class="yc"></span><span class="card-num yellow">${t.yc}</span><span class="rc"></span><span class="card-num red">${t.rc}</span></div></div>`).join(""):'<div class="no-data">Cartões ainda não disponíveis nas fontes gratuitas</div>';
+
+  let cardPlayerH=cardPlayers.length?cardPlayers.map((p,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${teamFlag(p.team)}</div><div class="li-inf"><div class="li-nm">${p.name}</div><div class="li-sb">${teamPT(p.team)} · min ${p.mins.slice(0,3).join(", ")}</div></div><div class="card-score"><span class="yc"></span><span class="card-num yellow">${p.yc}</span><span class="rc"></span><span class="card-num red">${p.rc}</span></div></div>`).join(""):'<div class="no-data">Cartões por jogador ainda não disponíveis</div>';
+
+  let yellowH=yellowPlayers.length?yellowPlayers.map((p,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${teamFlag(p.team)}</div><div class="li-inf"><div class="li-nm">${p.name}</div><div class="li-sb">${teamPT(p.team)}</div></div><div class="card-score"><span class="yc"></span><span class="card-num yellow">${p.yc}</span></div></div>`).join(""):'<div class="no-data">Sem amarelos registrados</div>';
+
+  let redH=redPlayers.length?redPlayers.map((p,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${teamFlag(p.team)}</div><div class="li-inf"><div class="li-nm">${p.name}</div><div class="li-sb">${teamPT(p.team)}</div></div><div class="card-score"><span class="rc"></span><span class="card-num red">${p.rc}</span></div></div>`).join(""):'<div class="no-data">Sem vermelhos registrados</div>';
+
+  let bigH=biggest.length?biggest.map((x,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${x.winner==="Empate"?"🤝":fl(x.winner)}</div><div class="li-inf"><div class="li-nm">${pt(x.m.h)} ${x.hs} x ${x.as} ${pt(x.m.a)}</div><div class="li-sb">${x.m.g} · saldo ${x.diff}</div></div><div class="li-val">${x.total}</div></div>`).join(""):'<div class="no-data">Aguardando jogos finalizados</div>';
+
   return`<div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
-  <div class="kpi"><div class="kpi-n" style="color:${lc?"var(--live)":"var(--gold)"}">${lc}</div><div class="kpi-l" style="color:${lc?"var(--live)":""}">Ao vivo agora</div></div>
+  <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l" style="color:${liveNow?"var(--live)":""}">Ao vivo agora</div></div>
   <div class="kpi"><div class="kpi-n">${totalG}</div><div class="kpi-l">Total de gols</div></div>
-  <div class="kpi"><div class="kpi-n">${avg}</div><div class="kpi-l">Media gols/jogo</div></div>
+  <div class="kpi"><div class="kpi-n">${avg}</div><div class="kpi-l">Média gols/jogo</div></div>
   <div class="kpi wide">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
-      <div class="kpi-l" style="margin:0">Progresso - <span style="color:var(--green);font-size:9px">✓ ${src}</span></div>
+      <div class="kpi-l" style="margin:0">Progresso · <span style="color:var(--green);font-size:9px">✓ ${src}</span></div>
       <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--gold)">${played}/104</span>
     </div>
     <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
-    <div class="kpi-sub">${pct}% - Copa: 11 Jun - 19 Jul 2026</div>
+    <div class="kpi-sub">${pct}% · Copa: 11 Jun - 19 Jul 2026</div>
   </div>
 </div>
+
+<div class="stat-mini-grid">
+  <div class="stat-mini"><div class="stat-mini-n">${totalY}</div><div class="stat-mini-l">Amarelos</div></div>
+  <div class="stat-mini"><div class="stat-mini-n" style="color:var(--rcard)">${totalR}</div><div class="stat-mini-l">Vermelhos</div></div>
+  <div class="stat-mini"><div class="stat-mini-n">${topCS.reduce((s,t)=>s+t.cs,0)}</div><div class="stat-mini-l">Clean sheets</div></div>
+</div>
+
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🏆</span><h3>APROVEITAMENTO</h3><span class="api-src">${played>0?"✓ tabela":"aguardando..."}</span></div>${ptsH}</div>
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>ARTILHEIROS</h3><span class="api-src">${sList.length>0?"✓ "+src:"aguardando..."}</span></div>${sH}</div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">🥅</span><h3>MAIORES ATAQUES</h3><span class="api-src">${played>0?"✓ worldcup26.ir":"aguardando..."}</span></div>${aH}</div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">🛡️</span><h3>MELHORES DEFESAS</h3><span class="api-src">${played>0?"✓ worldcup26.ir":"aguardando..."}</span></div>${dH}</div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA</h3><span class="api-src">${ofbOk&&played>0?"✓ openfootball":"aguardando..."}</span></div>${disH}
-<div style="padding:9px 13px;border-top:1px solid var(--border2);font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text3)">🟨 2 amarelos = suspensao - 🟥 Vermelho = proximo jogo suspenso</div></div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🥅</span><h3>MAIORES ATAQUES</h3><span class="api-src">${played>0?"✓ placares":"aguardando..."}</span></div>${aH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🛡️</span><h3>MELHORES DEFESAS</h3><span class="api-src">${played>0?"✓ placares":"aguardando..."}</span></div>${dH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🧤</span><h3>CLEAN SHEETS</h3><span class="api-src">${played>0?"✓ placares":"aguardando..."}</span></div>${csH}</div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">📈</span><h3>MAIORES PLACARES</h3><span class="api-src">${played>0?"✓ placares":"aguardando..."}</span></div>${bigH}</div>
+
+<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🟨</span><h3>CARTÕES POR SELEÇÃO</h3><span class="api-src">local/openfootball</span></div>
+  ${cardTeamH}
+</div>
+
+<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🎽</span><h3>CARTÕES POR JOGADOR</h3><span class="api-src">ranking geral</span></div>
+  ${cardPlayerH}
+</div>
+
+<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🟨</span><h3>AMARELOS POR JOGADOR</h3><span class="api-src">ranking</span></div>
+  ${yellowH}
+</div>
+
+<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🟥</span><h3>VERMELHOS POR JOGADOR</h3><span class="api-src">ranking</span></div>
+  ${redH}
+  <div class="stat-tabs-note"><b>Critério disciplinar:</b> ranking geral usa amarelo = 1 ponto e vermelho = 3 pontos. A atualização depende das fontes de eventos; quando elas não entregam cartões em tempo real, o app usa eventos locais de contingência.</div>
+</div>
+
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📋</span><h3>SOBRE O TORNEIO</h3></div>
 <table class="info-tbl">
-  <tr><td>Edicao</td><td>23a Copa do Mundo FIFA</td></tr>
-  <tr><td>Paises sede</td><td>🇺🇸 EUA - 🇨🇦 Canada - 🇲🇽 Mexico</td></tr>
-  <tr><td>Selecoes</td><td>48 - 12 grupos de 4</td></tr>
+  <tr><td>Edição</td><td>23ª Copa do Mundo FIFA</td></tr>
+  <tr><td>Países sede</td><td>🇺🇸 EUA · 🇨🇦 Canadá · 🇲🇽 México</td></tr>
+  <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
-  <tr><td>Abertura</td><td>11 Jun - Cidade do Mexico</td></tr>
-  <tr><td>Final</td><td>19 Jul - MetLife, Nova York</td></tr>
-  <tr><td>🇧🇷 Brasil - Grupo C</td><td>🇧🇷🇲🇦🇭🇹🏴󠁧󠁢󠁳󠁣󠁴󠁿</td></tr>
-  <tr><td>Placares ao vivo</td><td style="color:var(--gold)">worldcup26.ir</td></tr>
-  <tr><td>Gols e cartoes</td><td style="color:var(--gold)">openfootball.github.io</td></tr>
+  <tr><td>Abertura</td><td>11 Jun · Cidade do México</td></tr>
+  <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
+  <tr><td>🇧🇷 Brasil · Grupo C</td><td>🇧🇷🇲🇦🇭🇹🏴</td></tr>
+  <tr><td>Placares ao vivo</td><td style="color:var(--gold)">worldcup26.ir + modo local</td></tr>
+  <tr><td>Gols e cartões</td><td style="color:var(--gold)">openfootball + contingência local</td></tr>
   <tr><td>Criado por</td><td style="color:var(--gold)">Pscheidt</td></tr>
 </table></div>
-<div class="src">Placares: <a href="https://worldcup26.ir">worldcup26.ir</a> - Eventos: <a href="https://github.com/openfootball/worldcup.json">openfootball</a> / ESPN - Artilheiros: <a href="https://football-data.org">football-data.org</a></div>`;
+<div class="src">Placares: <a href="https://worldcup26.ir">worldcup26.ir</a> · Eventos: <a href="https://github.com/openfootball/worldcup.json">openfootball</a> · Artilheiros: <a href="https://football-data.org">football-data.org</a></div>`;
 }
 
 function goPage(pg){curPage=pg;document.querySelectorAll(".pg").forEach(el=>el.classList.remove("on"));document.getElementById("pg-"+pg).classList.add("on");document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));document.getElementById("nav-"+pg).classList.add("active");document.getElementById("tabBar").style.display=pg==="jogos"?"flex":"none";render();}
