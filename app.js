@@ -53,6 +53,29 @@ const FALLBACK_RESULTS = {
 };
 function matchKey(h,a){return `${canon(h)}|${canon(a)}`;}
 
+// V4 - Correção de placar ao vivo e cronômetro.
+// Use este bloco quando a API vier sem dados ao vivo ou atrasada.
+// Atualize apenas enquanto o jogo estiver acontecendo.
+const LIVE_OVERRIDES = {
+  "brazil|morocco": {hs:1, as:1, st:"live", min:"AO VIVO"}
+};
+
+function liveOverrideFor(m){
+  return LIVE_OVERRIDES[matchKey(m.h,m.a)] || null;
+}
+
+function safeClockLabel(m, data){
+  if(data && data.min && String(data.min).trim()) return data.min;
+  const ov = liveOverrideFor(m);
+  if(ov && ov.min) return ov.min;
+
+  // Se não há minuto confiável vindo da API, não inventa intervalo.
+  // Antes a tela estimava pelo horário e podia exibir INTERVALO erroneamente.
+  if(data && data.st === "live") return "AO VIVO";
+  return "";
+}
+
+
 let WC_GAMES=[],WC_GROUPS=[],WC_SCORERS=[],OFB_DATA=null,FD_SC=[];
 let wcOk=false,ofbOk=false,fdOk=false;
 let curPage="jogos",curFilter="all";
@@ -109,6 +132,9 @@ function fallbackStatus(m){
   return"upcoming";
 }
 function mData(m){
+  const ov = liveOverrideFor(m);
+  if(ov) return {hs:ov.hs, as:ov.as, hasScore:true, st:ov.st, min:ov.min, source:"live_override"};
+
   const fb = FALLBACK_RESULTS[matchKey(m.h,m.a)];
   const g = wcGame(m.h,m.a);
 
@@ -122,12 +148,10 @@ function mData(m){
   let hasScore = hs!==null && hs!==undefined && as!==null && as!==undefined && hs!=="" && as!=="";
   let apiSt = g._st || "upcoming";
 
-  // Se a API encontrou o jogo, mas veio sem placar ou atrasada, aplica fallback do jogo já encerrado.
   if((!hasScore || apiSt==="upcoming") && fb){
     hs = fb.hs; as = fb.as; hasScore = true; apiSt = "finished";
   }
 
-  // Se a API vier sem placar e sem fallback, o calendário local define o status.
   const st = hasScore || apiSt==="live" ? apiSt : fallbackStatus(m);
   return {hs, as, hasScore, st, min:g._min, source:fb && apiSt==="finished" ? "fallback" : "api"};
 }
@@ -136,152 +160,11 @@ function mSt(m){
   if(d)return d.st;
   return fallbackStatus(m);
 }
-function getMin(m,d){if(!d)return"";if(d.min)return d.min;const e=estMin(m.d,m.t);if(e===null)return"";if(isHT(m.d,m.t))return"Intervalo";return e+"'";}
-function tPct(m,d){if(!d)return 0;const mn=d.min?parseInt(d.min):null;if(mn&&!isNaN(mn))return Math.min(100,Math.round(mn/90*100));const e=estMin(m.d,m.t);return e?Math.min(100,Math.round(e/90*100)):0;}
-
-const F=[
-  {id:"a1",g:"A",d:"2026-06-11",t:"16:00",h:"Mexico",a:"South Africa",v:"Estádio Azteca, Cidade do México",ph:"grupos"},
-  {id:"a2",g:"A",d:"2026-06-11",t:"23:00",h:"South Korea",a:"Czechia",v:"Estadio Akron, Guadalajara",ph:"grupos"},
-  {id:"a3",g:"A",d:"2026-06-18",t:"13:00",h:"Czechia",a:"South Africa",v:"Mercedes-Benz Stadium, Atlanta",ph:"grupos"},
-  {id:"a4",g:"A",d:"2026-06-18",t:"22:00",h:"Mexico",a:"South Korea",v:"Estadio Akron, Guadalajara",ph:"grupos"},
-  {id:"a5",g:"A",d:"2026-06-25",t:"22:00",h:"Czechia",a:"Mexico",v:"Estádio Azteca, Cidade do México",ph:"grupos"},
-  {id:"a6",g:"A",d:"2026-06-25",t:"22:00",h:"South Africa",a:"South Korea",v:"Estadio BBVA, Monterrey",ph:"grupos"},
-  {id:"b1",g:"B",d:"2026-06-12",t:"16:00",h:"Canada",a:"Bosnia and Herzegovina",v:"BMO Field, Toronto",ph:"grupos"},
-  {id:"b2",g:"B",d:"2026-06-13",t:"16:00",h:"Qatar",a:"Switzerland",v:"Levi's Stadium, San Francisco",ph:"grupos"},
-  {id:"b3",g:"B",d:"2026-06-18",t:"16:00",h:"Switzerland",a:"Bosnia and Herzegovina",v:"SoFi Stadium, Los Angeles",ph:"grupos"},
-  {id:"b4",g:"B",d:"2026-06-18",t:"19:00",h:"Canada",a:"Qatar",v:"BC Place, Vancouver",ph:"grupos"},
-  {id:"b5",g:"B",d:"2026-06-24",t:"16:00",h:"Switzerland",a:"Canada",v:"BC Place, Vancouver",ph:"grupos"},
-  {id:"b6",g:"B",d:"2026-06-24",t:"16:00",h:"Bosnia and Herzegovina",a:"Qatar",v:"Lumen Field, Seattle",ph:"grupos"},
-  {id:"c1",g:"C",d:"2026-06-13",t:"19:00",h:"Brazil",a:"Morocco",v:"MetLife Stadium, Nova York",ph:"grupos",br:1},
-  {id:"c2",g:"C",d:"2026-06-13",t:"22:00",h:"Haiti",a:"Scotland",v:"Gillette Stadium, Boston",ph:"grupos"},
-  {id:"c3",g:"C",d:"2026-06-19",t:"19:00",h:"Scotland",a:"Morocco",v:"Gillette Stadium, Boston",ph:"grupos"},
-  {id:"c4",g:"C",d:"2026-06-19",t:"21:30",h:"Brazil",a:"Haiti",v:"Lincoln Financial Field, Filadélfia",ph:"grupos",br:1},
-  {id:"c5",g:"C",d:"2026-06-24",t:"19:00",h:"Scotland",a:"Brazil",v:"Hard Rock Stadium, Miami",ph:"grupos",br:1},
-  {id:"c6",g:"C",d:"2026-06-24",t:"19:00",h:"Morocco",a:"Haiti",v:"Mercedes-Benz Stadium, Atlanta",ph:"grupos"},
-  {id:"d1",g:"D",d:"2026-06-12",t:"22:00",h:"United States",a:"Paraguay",v:"SoFi Stadium, Los Angeles",ph:"grupos"},
-  {id:"d2",g:"D",d:"2026-06-13",t:"01:00",h:"Australia",a:"Türkiye",v:"BC Place, Vancouver",ph:"grupos"},
-  {id:"d3",g:"D",d:"2026-06-19",t:"01:00",h:"Türkiye",a:"Paraguay",v:"Levi's Stadium, San Francisco",ph:"grupos"},
-  {id:"d4",g:"D",d:"2026-06-19",t:"16:00",h:"United States",a:"Australia",v:"Lumen Field, Seattle",ph:"grupos"},
-  {id:"d5",g:"D",d:"2026-06-25",t:"23:00",h:"Türkiye",a:"United States",v:"SoFi Stadium, Los Angeles",ph:"grupos"},
-  {id:"d6",g:"D",d:"2026-06-25",t:"23:00",h:"Paraguay",a:"Australia",v:"Levi's Stadium, San Francisco",ph:"grupos"},
-  {id:"e1",g:"E",d:"2026-06-14",t:"14:00",h:"Germany",a:"Curacao",v:"NRG Stadium, Houston",ph:"grupos"},
-  {id:"e2",g:"E",d:"2026-06-14",t:"20:00",h:"Ivory Coast",a:"Ecuador",v:"Lincoln Financial Field, Filadélfia",ph:"grupos"},
-  {id:"e3",g:"E",d:"2026-06-20",t:"17:00",h:"Germany",a:"Ivory Coast",v:"BMO Field, Toronto",ph:"grupos"},
-  {id:"e4",g:"E",d:"2026-06-20",t:"21:00",h:"Ecuador",a:"Curacao",v:"Children's Mercy Park, Kansas City",ph:"grupos"},
-  {id:"e5",g:"E",d:"2026-06-25",t:"17:00",h:"Curacao",a:"Ivory Coast",v:"Lincoln Financial Field, Filadélfia",ph:"grupos"},
-  {id:"e6",g:"E",d:"2026-06-25",t:"17:00",h:"Ecuador",a:"Germany",v:"MetLife Stadium, Nova York",ph:"grupos"},
-  {id:"f1",g:"F",d:"2026-06-14",t:"17:00",h:"Netherlands",a:"Japan",v:"AT&T Stadium, Dallas",ph:"grupos"},
-  {id:"f2",g:"F",d:"2026-06-14",t:"23:00",h:"Sweden",a:"Tunisia",v:"Estadio BBVA, Monterrey",ph:"grupos"},
-  {id:"f3",g:"F",d:"2026-06-20",t:"14:00",h:"Netherlands",a:"Sweden",v:"NRG Stadium, Houston",ph:"grupos"},
-  {id:"f4",g:"F",d:"2026-06-20",t:"01:00",h:"Tunisia",a:"Japan",v:"Estadio BBVA, Monterrey",ph:"grupos"},
-  {id:"f5",g:"F",d:"2026-06-25",t:"20:00",h:"Japan",a:"Sweden",v:"AT&T Stadium, Dallas",ph:"grupos"},
-  {id:"f6",g:"F",d:"2026-06-25",t:"20:00",h:"Tunisia",a:"Netherlands",v:"Children's Mercy Park, Kansas City",ph:"grupos"},
-  {id:"g1",g:"G",d:"2026-06-15",t:"16:00",h:"Belgium",a:"Egypt",v:"Lumen Field, Seattle",ph:"grupos"},
-  {id:"g2",g:"G",d:"2026-06-15",t:"22:00",h:"Iran",a:"New Zealand",v:"SoFi Stadium, Los Angeles",ph:"grupos"},
-  {id:"g3",g:"G",d:"2026-06-21",t:"16:00",h:"Belgium",a:"Iran",v:"SoFi Stadium, Los Angeles",ph:"grupos"},
-  {id:"g4",g:"G",d:"2026-06-21",t:"22:00",h:"New Zealand",a:"Egypt",v:"BC Place, Vancouver",ph:"grupos"},
-  {id:"g5",g:"G",d:"2026-06-27",t:"00:00",h:"Egypt",a:"Iran",v:"Lumen Field, Seattle",ph:"grupos"},
-  {id:"g6",g:"G",d:"2026-06-27",t:"00:00",h:"New Zealand",a:"Belgium",v:"BC Place, Vancouver",ph:"grupos"},
-  {id:"h1",g:"H",d:"2026-06-15",t:"13:00",h:"Spain",a:"Cape Verde",v:"Mercedes-Benz Stadium, Atlanta",ph:"grupos"},
-  {id:"h2",g:"H",d:"2026-06-15",t:"19:00",h:"Saudi Arabia",a:"Uruguay",v:"Hard Rock Stadium, Miami",ph:"grupos"},
-  {id:"h3",g:"H",d:"2026-06-21",t:"13:00",h:"Spain",a:"Saudi Arabia",v:"Mercedes-Benz Stadium, Atlanta",ph:"grupos"},
-  {id:"h4",g:"H",d:"2026-06-21",t:"19:00",h:"Uruguay",a:"Cape Verde",v:"Hard Rock Stadium, Miami",ph:"grupos"},
-  {id:"h5",g:"H",d:"2026-06-26",t:"21:00",h:"Cape Verde",a:"Saudi Arabia",v:"NRG Stadium, Houston",ph:"grupos"},
-  {id:"h6",g:"H",d:"2026-06-26",t:"21:00",h:"Uruguay",a:"Spain",v:"Estadio Akron, Guadalajara",ph:"grupos"},
-  {id:"i1",g:"I",d:"2026-06-16",t:"16:00",h:"France",a:"Senegal",v:"MetLife Stadium, Nova York",ph:"grupos"},
-  {id:"i2",g:"I",d:"2026-06-16",t:"19:00",h:"Iraq",a:"Norway",v:"Gillette Stadium, Boston",ph:"grupos"},
-  {id:"i3",g:"I",d:"2026-06-22",t:"18:00",h:"France",a:"Iraq",v:"Lincoln Financial Field, Filadélfia",ph:"grupos"},
-  {id:"i4",g:"I",d:"2026-06-22",t:"21:00",h:"Norway",a:"Senegal",v:"MetLife Stadium, Nova York",ph:"grupos"},
-  {id:"i5",g:"I",d:"2026-06-26",t:"16:00",h:"Norway",a:"France",v:"Gillette Stadium, Boston",ph:"grupos"},
-  {id:"i6",g:"I",d:"2026-06-26",t:"16:00",h:"Senegal",a:"Iraq",v:"BMO Field, Toronto",ph:"grupos"},
-  {id:"j1",g:"J",d:"2026-06-16",t:"01:00",h:"Austria",a:"Jordan",v:"Levi's Stadium, San Francisco",ph:"grupos"},
-  {id:"j2",g:"J",d:"2026-06-16",t:"22:00",h:"Argentina",a:"Algeria",v:"Children's Mercy Park, Kansas City",ph:"grupos"},
-  {id:"j3",g:"J",d:"2026-06-22",t:"00:00",h:"Jordan",a:"Algeria",v:"Levi's Stadium, San Francisco",ph:"grupos"},
-  {id:"j4",g:"J",d:"2026-06-22",t:"14:00",h:"Argentina",a:"Austria",v:"AT&T Stadium, Dallas",ph:"grupos"},
-  {id:"j5",g:"J",d:"2026-06-27",t:"23:00",h:"Algeria",a:"Austria",v:"Children's Mercy Park, Kansas City",ph:"grupos"},
-  {id:"j6",g:"J",d:"2026-06-27",t:"23:00",h:"Jordan",a:"Argentina",v:"AT&T Stadium, Dallas",ph:"grupos"},
-  {id:"k1",g:"K",d:"2026-06-17",t:"14:00",h:"Portugal",a:"DR Congo",v:"NRG Stadium, Houston",ph:"grupos"},
-  {id:"k2",g:"K",d:"2026-06-17",t:"23:00",h:"Uzbekistan",a:"Colombia",v:"Estádio Azteca, Cidade do México",ph:"grupos"},
-  {id:"k3",g:"K",d:"2026-06-23",t:"14:00",h:"Portugal",a:"Uzbekistan",v:"NRG Stadium, Houston",ph:"grupos"},
-  {id:"k4",g:"K",d:"2026-06-23",t:"23:00",h:"Colombia",a:"DR Congo",v:"Estadio Akron, Guadalajara",ph:"grupos"},
-  {id:"k5",g:"K",d:"2026-06-27",t:"20:30",h:"Colombia",a:"Portugal",v:"Hard Rock Stadium, Miami",ph:"grupos"},
-  {id:"k6",g:"K",d:"2026-06-27",t:"20:30",h:"DR Congo",a:"Uzbekistan",v:"Mercedes-Benz Stadium, Atlanta",ph:"grupos"},
-  {id:"l1",g:"L",d:"2026-06-17",t:"17:00",h:"England",a:"Croatia",v:"AT&T Stadium, Dallas",ph:"grupos"},
-  {id:"l2",g:"L",d:"2026-06-17",t:"20:00",h:"Ghana",a:"Panama",v:"BMO Field, Toronto",ph:"grupos"},
-  {id:"l3",g:"L",d:"2026-06-23",t:"17:00",h:"England",a:"Ghana",v:"Gillette Stadium, Boston",ph:"grupos"},
-  {id:"l4",g:"L",d:"2026-06-23",t:"20:00",h:"Panama",a:"Croatia",v:"BMO Field, Toronto",ph:"grupos"},
-  {id:"l5",g:"L",d:"2026-06-27",t:"18:00",h:"Panama",a:"England",v:"MetLife Stadium, Nova York",ph:"grupos"},
-  {id:"l6",g:"L",d:"2026-06-27",t:"18:00",h:"Croatia",a:"Ghana",v:"Lincoln Financial Field, Filadélfia",ph:"grupos"},
-  {id:"e01",g:"1/16",d:"2026-06-28",t:"16:00",h:"2 Grupo A",a:"2 Grupo B",v:"SoFi Stadium, Los Angeles",ph:"oitavas"},
-  {id:"e02",g:"1/16",d:"2026-06-29",t:"14:00",h:"1 Grupo C",a:"2 Grupo F",v:"NRG Stadium, Houston",ph:"oitavas"},
-  {id:"e03",g:"1/16",d:"2026-06-29",t:"17:30",h:"1 Grupo E",a:"Melhor 3",v:"Gillette Stadium, Boston",ph:"oitavas"},
-  {id:"e04",g:"1/16",d:"2026-06-29",t:"22:00",h:"1 Grupo F",a:"2 Grupo C",v:"Estadio BBVA, Monterrey",ph:"oitavas"},
-  {id:"e05",g:"1/16",d:"2026-06-30",t:"14:00",h:"2 Grupo E",a:"2 Grupo I",v:"AT&T Stadium, Dallas",ph:"oitavas"},
-  {id:"e06",g:"1/16",d:"2026-06-30",t:"18:00",h:"1 Grupo I",a:"Melhor 3",v:"MetLife Stadium, Nova York",ph:"oitavas"},
-  {id:"e07",g:"1/16",d:"2026-06-30",t:"22:00",h:"1 Grupo A",a:"Melhor 3",v:"Estádio Azteca, Cidade do México",ph:"oitavas"},
-  {id:"e08",g:"1/16",d:"2026-07-01",t:"13:00",h:"1 Grupo L",a:"Melhor 3",v:"Mercedes-Benz Stadium, Atlanta",ph:"oitavas"},
-  {id:"e09",g:"1/16",d:"2026-07-01",t:"17:00",h:"1 Grupo G",a:"Melhor 3",v:"Lumen Field, Seattle",ph:"oitavas"},
-  {id:"e10",g:"1/16",d:"2026-07-01",t:"21:00",h:"1 Grupo D",a:"Melhor 3",v:"Levi's Stadium, San Francisco",ph:"oitavas"},
-  {id:"e11",g:"1/16",d:"2026-07-02",t:"00:00",h:"1 Grupo B",a:"Melhor 3",v:"BC Place, Vancouver",ph:"oitavas"},
-  {id:"e12",g:"1/16",d:"2026-07-02",t:"16:00",h:"1 Grupo H",a:"2 Grupo J",v:"SoFi Stadium, Los Angeles",ph:"oitavas"},
-  {id:"e13",g:"1/16",d:"2026-07-02",t:"20:00",h:"2 Grupo K",a:"2 Grupo L",v:"BMO Field, Toronto",ph:"oitavas"},
-  {id:"e14",g:"1/16",d:"2026-07-03",t:"15:00",h:"2 Grupo D",a:"2 Grupo G",v:"AT&T Stadium, Dallas",ph:"oitavas"},
-  {id:"e15",g:"1/16",d:"2026-07-03",t:"17:00",h:"1 Grupo J",a:"2 Grupo H",v:"Mercedes-Benz Stadium, Atlanta",ph:"oitavas"},
-  {id:"e16",g:"1/16",d:"2026-07-03",t:"22:30",h:"1 Grupo K",a:"Melhor 3",v:"Children's Mercy Park, Kansas City",ph:"oitavas"},
-  {id:"o1",g:"Oitavas",d:"2026-07-04",t:"14:00",h:"Venc.2Ax2B",a:"Venc.1Fx2C",v:"NRG Stadium, Houston",ph:"oitavas"},
-  {id:"o2",g:"Oitavas",d:"2026-07-04",t:"18:00",h:"Venc.1Ex3",a:"Venc.1Ix3",v:"Lincoln Financial, Filadélfia",ph:"oitavas"},
-  {id:"o3",g:"Oitavas",d:"2026-07-05",t:"17:00",h:"Venc.1Cx2F",a:"Venc.2Ex2I",v:"MetLife Stadium, Nova York",ph:"oitavas"},
-  {id:"o4",g:"Oitavas",d:"2026-07-05",t:"21:00",h:"Venc.1Ax3",a:"Venc.1Lx3",v:"Estádio Azteca, Cidade do México",ph:"oitavas"},
-  {id:"o5",g:"Oitavas",d:"2026-07-06",t:"15:00",h:"Venc.2Kx2L",a:"Venc.1Hx2J",v:"AT&T Stadium, Dallas",ph:"oitavas"},
-  {id:"o6",g:"Oitavas",d:"2026-07-06",t:"20:00",h:"Venc.1Dx3",a:"Venc.1Gx3",v:"Lumen Field, Seattle",ph:"oitavas"},
-  {id:"o7",g:"Oitavas",d:"2026-07-07",t:"13:00",h:"Venc.1Jx2H",a:"Venc.2Dx2G",v:"Mercedes-Benz, Atlanta",ph:"oitavas"},
-  {id:"o8",g:"Oitavas",d:"2026-07-07",t:"17:00",h:"Venc.1Bx3",a:"Venc.1Kx3",v:"BC Place, Vancouver",ph:"oitavas"},
-  {id:"q1",g:"Quartas",d:"2026-07-09",t:"17:00",h:"Venc.J89",a:"Venc.J90",v:"Gillette Stadium, Boston",ph:"semi"},
-  {id:"q2",g:"Quartas",d:"2026-07-10",t:"16:00",h:"Venc.J93",a:"Venc.J94",v:"SoFi Stadium, Los Angeles",ph:"semi"},
-  {id:"q3",g:"Quartas",d:"2026-07-11",t:"18:00",h:"Venc.J91",a:"Venc.J92",v:"Hard Rock Stadium, Miami",ph:"semi"},
-  {id:"q4",g:"Quartas",d:"2026-07-11",t:"21:00",h:"Venc.J95",a:"Venc.J96",v:"Children's Mercy Park, KC",ph:"semi"},
-  {id:"sf1",g:"Semifinal",d:"2026-07-14",t:"16:00",h:"Venc.QF1",a:"Venc.QF2",v:"AT&T Stadium, Dallas",ph:"semi"},
-  {id:"sf2",g:"Semifinal",d:"2026-07-15",t:"16:00",h:"Venc.QF3",a:"Venc.QF4",v:"AT&T Stadium, Dallas",ph:"semi"},
-  {id:"tp1",g:"3 Lugar",d:"2026-07-18",t:"18:00",h:"Perd.SF1",a:"Perd.SF2",v:"Hard Rock Stadium, Miami",ph:"semi"},
-  {id:"fi1",g:"FINAL",d:"2026-07-19",t:"16:00",h:"Venc.SF1",a:"Venc.SF2",v:"MetLife Stadium, Nova York",ph:"semi"}
-];
-
-function mkCard(m){
-  const data=mData(m);const st=data?data.st:mSt(m);
-  const isBR=m.br||m.h==="Brazil"||m.a==="Brazil";
-  const minD=getMin(m,data);const pct=tPct(m,data);
-  let pill="";
-  if(st==="live")pill=`<span class="mc-st ms-live">🔴 ${minD||"AO VIVO"}</span>`;
-  else if(st==="finished")pill='<span class="mc-st ms-done">✓ FIM</span>';
-  else pill=`<span class="mc-st ms-up">${m.g}</span>`;
-  let mid="";
-  if((st==="live"||st==="finished")&&data&&data.hs!=null){
-    const hw=+data.hs>+data.as,aw=+data.as>+data.hs;
-    mid=`<div class="sc-box"><div class="sc${hw?" win":""}">${data.hs}</div><div class="sc-d">:</div><div class="sc${aw?" win":""}">${data.as}</div></div>`;
-  }else{mid=`<div class="tt">${m.t}</div>`;}
-  const hw2=st==="finished"&&data&&+data.hs>+data.as;
-  const aw2=st==="finished"&&data&&+data.as>+data.hs;
-  let goalsSum="";
-  if(st!=="upcoming"){
-    const ofb=ofbMatch(m.h,m.a);
-    if(ofb){
-      const g1=(ofb.goals1||[]).map(g=>g.name.split(" ").pop()+(g.minute?" "+g.minute+"'":"")+(g.penalty?" (P)":"")).join(", ");
-      const g2=(ofb.goals2||[]).map(g=>g.name.split(" ").pop()+(g.minute?" "+g.minute+"'":"")+(g.penalty?" (P)":"")).join(", ");
-      if(g1||g2)goalsSum=`<div class="mc-goals">${g1?fl(m.h)+" "+g1:""}${g1&&g2?" | ":""}${g2?fl(m.a)+" "+g2:""}</div>`;
-    }
-  }
-  let timerH="";
-  if(st==="live"){const ht=isHT(m.d,m.t);timerH=`<div class="mc-timer"><div class="timer-dot"></div><div class="timer-val">${ht?"INTERVALO":minD}</div><div class="timer-bar-wrap"><div class="timer-bar" style="width:${pct}%"></div></div></div>`;}
-  return`<div class="mc ${st}${isBR?" br":""}" onclick="openModal('${m.id}')">
-  <div class="mc-top"><span class="mc-grp">${m.g}</span>${pill}</div>
-  <div class="mc-row">
-    <div class="mc-side"><span class="mc-fl">${fl(m.h)}</span><span class="mc-nm${hw2?" win":""}">${pt(m.h)}</span></div>
-    ${mid}
-    <div class="mc-side r"><span class="mc-fl">${fl(m.a)}</span><span class="mc-nm${aw2?" win":""}">${pt(m.a)}</span></div>
-  </div>${timerH}${goalsSum}
-  <div class="mc-venue">${m.v}</div>
-  ${st!=="upcoming"?'<div class="tap-hint">Toque para detalhes ↑</div>':""}
-</div>`;
+function getMin(m,d){
+  if(!d) return "";
+  const lbl = safeClockLabel(m,d);
+  if(lbl) return lbl;
+  return "";
 }
 
 function renderJogos(){
@@ -357,7 +240,7 @@ function renderGrupos(){
       const data=mData(m);const st=data?data.st:mSt(m);
       const ofb=ofbMatch(m.h,m.a);
       let sStr=m.t;
-      if(st==="live"&&data&&data.hs!=null)sStr=`<span style="color:var(--live)">${data.hs}-${data.as} ${getMin(m,data)}🔴</span>`;
+      if(st==="live"&&data&&data.hs!=null)sStr=`<span style="color:var(--live)">${data.hs}-${data.as} ${safeClockLabel(m,data)||"AO VIVO"} 🔴</span>`;
       else if(st==="finished"&&data&&data.hs!=null)sStr=`${data.hs}-${data.as}`;
       let sc="";
       if(ofb&&st!=="upcoming"){
@@ -387,7 +270,7 @@ function buildModal(m){
   const hw=data&&+data.hs>+data.as,aw=data&&+data.as>+data.hs;
   const minD=getMin(m,data);const pct=tPct(m,data);
   let scoreC="";
-  if((st==="live"||st==="finished")&&data&&data.hs!=null){
+  if((st==="live"||st==="finished")&&data&&data.hasScore){
     scoreC=`<div class="mt-score-box"><div class="mt-sc${hw?" win":""}">${data.hs}</div><div class="mt-sc-d">:</div><div class="mt-sc${aw?" win":""}">${data.as}</div></div>`;
   }else{scoreC=`<div class="mt-sc-time">${m.t}</div>`;}
   let liveBar="";
