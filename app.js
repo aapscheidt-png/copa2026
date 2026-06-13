@@ -333,12 +333,7 @@ function mkCard(m){
   const aw2=st==="finished"&&data&&+data.as>+data.hs;
   let goalsSum="";
   if(st!=="upcoming"){
-    const ofb=ofbMatch(m.h,m.a);
-    if(ofb){
-      const g1=(ofb.goals1||[]).map(g=>g.name.split(" ").pop()+(g.minute?" "+g.minute+"'":"")+(g.penalty?" (P)":"")).join(", ");
-      const g2=(ofb.goals2||[]).map(g=>g.name.split(" ").pop()+(g.minute?" "+g.minute+"'":"")+(g.penalty?" (P)":"")).join(", ");
-      if(g1||g2)goalsSum=`<div class="mc-goals">${g1?fl(m.h)+" "+g1:""}${g1&&g2?" | ":""}${g2?fl(m.a)+" "+g2:""}</div>`;
-    }
+    goalsSum=goalsSummaryV9(m);
   }
   let timerH="";
   if(st==="live"){timerH=`<div class="mc-timer"><div class="timer-dot"></div><div class="timer-val">${minD||"AO VIVO"}</div><div class="timer-bar-wrap"><div class="timer-bar" style="width:${pct||8}%"></div></div></div>`;}
@@ -488,7 +483,6 @@ function buildDetail(m,ofb){
   let html="";
   const live=liveExtraFor(m);
 
-  // Posse de bola no jogo ao vivo, se houver fonte local/API
   if(live&&live.possession){
     const hp=live.possession.home??0, ap=live.possession.away??0;
     html+=`<div class="modal-sec"><div class="modal-sec-title">📊 Posse de bola</div>
@@ -499,38 +493,32 @@ function buildDetail(m,ofb){
     </div>`;
   }
 
-  const og1=ofb?(ofb.goals1||[]):[], og2=ofb?(ofb.goals2||[]):[];
-  const localGoals=(overrideEvents(m).goals||[]);
-  const g1=[...og1, ...localGoals.filter(g=>nm(g.team,m.h)).map(g=>({name:g.name,minute:g.minute,penalty:g.penalty,owngoal:g.owngoal}))];
-  const g2=[...og2, ...localGoals.filter(g=>nm(g.team,m.a)).map(g=>({name:g.name,minute:g.minute,penalty:g.penalty,owngoal:g.owngoal}))];
-
-  if(g1.length||g2.length){
+  const goals=allGoalsForMatchV9(m,ofb);
+  if(goals.length){
     html+='<div class="modal-sec"><div class="modal-sec-title">⚽ Gols</div>';
-    [...g1.map(g=>({...g,side:"home"})),...g2.map(g=>({...g,side:"away"}))]
-      .sort((a,b)=>parseInt(a.minute||999)-parseInt(b.minute||999))
-      .forEach(g=>{
-        const isH=g.side==="home";
-        const icon=g.owngoal?"🔴":g.penalty?"🎯":"⚽";
-        const lbl=g.owngoal?" (contra)":g.penalty?" (pen)":"";
-        html+=`<div class="ev-row"><div class="ev-min">${g.minute||"?"}'</div><div class="ev-icon">${icon}</div><div class="ev-name">${g.name||"-"}${lbl}</div><div class="ev-team">${isH?fl(m.h):fl(m.a)}</div></div>`;
-      });
+    goals.forEach(g=>{
+      const isH=g.side==="home";
+      const icon=g.owngoal?"🔴":g.penalty?"🎯":"⚽";
+      const lbl=g.owngoal?" (contra)":g.penalty?" (pen)":"";
+      html+=`<div class="ev-row"><div class="ev-min">${g.minute||"?"}'</div><div class="ev-icon">${icon}</div><div class="ev-name">${g.name||"-"}${lbl}</div><div class="ev-team">${isH?fl(m.h):fl(m.a)}</div></div>`;
+    });
     html+="</div>";
   }
 
   const b1=cardsForMatch(m,"home"), b2=cardsForMatch(m,"away");
-  if(b1.length||b2.length){
+  const cards=dedupeEventsV9([...b1.map(b=>({...b,side:"home",team:m.h})),...b2.map(b=>({...b,side:"away",team:m.a}))])
+    .sort((a,b)=>parseInt(a.minute||999)-parseInt(b.minute||999));
+
+  if(cards.length){
     html+='<div class="modal-sec"><div class="modal-sec-title">🟨 Cartões</div>';
-    [...b1.map(b=>({...b,side:"home"})),...b2.map(b=>({...b,side:"away"}))]
-      .sort((a,b)=>parseInt(a.minute||999)-parseInt(b.minute||999))
-      .forEach(b=>{
-        const isH=b.side==="home";
-        const icon=cardType(b)==="red"?"🟥":"🟨";
-        html+=`<div class="ev-row"><div class="ev-min">${b.minute||"?"}'</div><div class="ev-icon">${icon}</div><div class="ev-name">${b.name||b.player||"-"}</div><div class="ev-team">${isH?fl(m.h):fl(m.a)}</div></div>`;
-      });
+    cards.forEach(b=>{
+      const isH=b.side==="home";
+      const icon=cardType(b)==="red"?"🟥":"🟨";
+      html+=`<div class="ev-row"><div class="ev-min">${b.minute||"?"}'</div><div class="ev-icon">${icon}</div><div class="ev-name">${b.name||b.player||"-"}</div><div class="ev-team">${isH?fl(m.h):fl(m.a)}</div></div>`;
+    });
     html+="</div>";
   }
 
-  // Escalações: aparecem quando forem preenchidas no bloco LIVE_MATCHES ou vierem da fonte.
   const lh=live?.lineups?.home||[];
   const la=live?.lineups?.away||[];
   if(lh.length||la.length){
@@ -616,6 +604,42 @@ function espnCardsFor(m,side){const team=side==="home"?m.h:m.a;return espnDetail
 function cardsForMatch(m,side){const ofb=ofbMatch(m.h,m.a);let cards=[];if(ofb){const arr=side==="home"?(ofb.bookings1||ofb.cards1||[]):(ofb.bookings2||ofb.cards2||[]);cards.push(...arr);}cards.push(...espnCardsFor(m,side));cards.push(...disciplineCardsForMatch(m,side));const ov=overrideEvents(m).cards||[];const team=side==="home"?m.h:m.a;cards.push(...ov.filter(c=>nm(c.team,team)));const seen=new Set();return cards.filter(c=>{const k=`${canon(c.name||c.player)}|${c.minute||"?"}|${cardType(c)}`;if(seen.has(k))return false;seen.add(k);return true;});}
 
 
+
+// V9 - evita duplicidade de gols/cartões entre LIVE_MATCHES, EVENT_OVERRIDES e APIs.
+function eventKeyV9(e){
+  return `${canon(e.name||e.player||"")}|${canon(e.team||"")}|${String(e.minute||"?").replace(/[^0-9+]/g,"")}|${e.type||e.card||""}`;
+}
+function dedupeEventsV9(arr){
+  const seen=new Set();
+  return (arr||[]).filter(e=>{
+    const k=eventKeyV9(e);
+    if(seen.has(k))return false;
+    seen.add(k);
+    return true;
+  });
+}
+function localGoalsForMatchV9(m){
+  const ev=overrideEvents(m).goals||[];
+  return dedupeEventsV9(ev.map(g=>({name:g.name,team:g.team,minute:g.minute,penalty:g.penalty,owngoal:g.owngoal,type:g.type||"goal"})));
+}
+function allGoalsForMatchV9(m,ofb){
+  const goals=[];
+  if(ofb){
+    (ofb.goals1||[]).forEach(g=>goals.push({...g,team:m.h,side:"home",type:"goal"}));
+    (ofb.goals2||[]).forEach(g=>goals.push({...g,team:m.a,side:"away",type:"goal"}));
+  }
+  localGoalsForMatchV9(m).forEach(g=>goals.push({...g,side:nm(g.team,m.h)?"home":"away"}));
+  return dedupeEventsV9(goals).sort((a,b)=>parseInt(a.minute||999)-parseInt(b.minute||999));
+}
+function goalsSummaryV9(m){
+  const ofb=ofbMatch(m.h,m.a);
+  const goals=allGoalsForMatchV9(m,ofb);
+  const h=goals.filter(g=>g.side==="home").map(g=>`${(g.name||"-").split(" ").pop()}${g.minute?" "+g.minute+"'":""}${g.penalty?" (P)":""}`);
+  const a=goals.filter(g=>g.side==="away").map(g=>`${(g.name||"-").split(" ").pop()}${g.minute?" "+g.minute+"'":""}${g.penalty?" (P)":""}`);
+  if(!h.length&&!a.length)return "";
+  return `<div class="mc-goals">${h.length?fl(m.h)+" "+h.join(", "):""}${h.length&&a.length?" | ":""}${a.length?fl(m.a)+" "+a.join(", "):""}</div>`;
+}
+
 function cardPlayerNameV7(c){return c.name||c.player||c.athlete||c.displayName||c.text||"Jogador não informado";}
 function cardMinuteV7(c){return c.minute||c.time||c.clock||"?";}
 
@@ -683,10 +707,11 @@ function renderStats(){
     });
   }
   F.filter(m=>mSt(m)!=="upcoming").forEach(m=>{
-    (overrideEvents(m).goals||[]).forEach(g=>{
-      const k=g.name+"|"+g.team;
-      scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:g.team});
-      if(!scorersMap[k]._localAdded){scorersMap[k].goals++;scorersMap[k]._localAdded=true;}
+    const ofb=ofbMatch(m.h,m.a);
+    allGoalsForMatchV9(m,ofb).forEach(g=>{
+      const k=(g.name||"-")+"|"+(g.team||"");
+      scorersMap[k]=(scorersMap[k]||{name:g.name||"-",goals:0,team:g.team||""});
+      if(!scorersMap[k]._countedV9){scorersMap[k].goals++;scorersMap[k]._countedV9=true;}
     });
   });
   const sList=Object.values(scorersMap).sort((a,b)=>b.goals-a.goals).slice(0,12);
@@ -716,7 +741,7 @@ function renderStats(){
 
   const redTable=redPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Vermelhos</th></tr></thead><tbody>${redPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.rc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões vermelhos registrados</div>';
 
-  return`<div class="stats-version">✓ V8 Stats+ · ranking disciplinar do torneio · cache atualizado</div>
+  return`<div class="stats-version">✓ V9 Stats+ · gols sem duplicidade · cartões preparados para torneio</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l">Ao vivo agora</div></div>
@@ -746,7 +771,7 @@ function renderStats(){
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📈</span><h3>MAIORES PLACARES</h3><span class="api-src">jogos finalizados</span></div>${bigH}</div>
 
 <div class="list-blk">
-  <div class="lb-hdr"><span class="lhi">🟨</span><h3>CARTÕES POR SELEÇÃO · TORNEIO</h3><span class="api-src">48 seleções</span></div>
+  <div class="lb-hdr"><span class="lhi">🟨</span><h3>CARTÕES POR SELEÇÃO · TORNEIO</h3><span class="api-src">48 seleções · cartões disponíveis</span></div>
   ${discTeamTable}
 </div>
 
@@ -763,7 +788,7 @@ function renderStats(){
 <div class="list-blk">
   <div class="lb-hdr"><span class="lhi">🟥</span><h3>VERMELHOS POR JOGADOR</h3><span class="api-src">ranking</span></div>
   ${redTable}
-  <div class="stat-source-warning"><b>Fonte dos cartões:</b> openfootball/ESPN nem sempre entregam bookings em tempo real. Por isso a V8 usa também <b>DISCIPLINE_LOG</b>, uma base local editável dentro do app.js. Critério do ranking: amarelo = 1 ponto; vermelho = 3 pontos.</div>
+  <div class="stat-source-warning"><b>Fonte dos cartões:</b> openfootball/ESPN não entregaram cartões completos dos jogos encerrados nesta build. Por isso a V9 usa <b>DISCIPLINE_LOG</b> como base local editável. Quando você inserir os cartões dos demais jogos, as quatro tabelas atualizam automaticamente. Critério: amarelo = 1 ponto; vermelho = 3 pontos.</div>
 </div>
 
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📋</span><h3>SOBRE O TORNEIO</h3></div>
