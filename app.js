@@ -34,7 +34,18 @@ function matchKey(h,a){return `${canon(h)}|${canon(a)}`;}
 let WC_GAMES=[],WC_GROUPS=[],WC_SCORERS=[],OFB_DATA=null,FD_SC=[],ESPN_GAMES=[],ESPN_SUMMARIES={};
 let wcOk=false,ofbOk=false,fdOk=false,espnOk=false;
 const FALLBACK_RESULTS={"mexico|south africa":{hs:2,as:0,st:"finished"},"south korea|czechia":{hs:2,as:1,st:"finished"},"canada|bosnia and herzegovina":{hs:1,as:1,st:"finished"},"united states|paraguay":{hs:4,as:1,st:"finished"},"qatar|switzerland":{hs:1,as:1,st:"finished"}};
-const EVENT_OVERRIDES={"brazil|morocco":{goals:[{team:"Morocco",name:"Ismael Saibari",minute:"21",type:"goal"},{team:"Brazil",name:"Vinícius Júnior",minute:"32",type:"goal"}],cards:[{team:"Brazil",name:"Casemiro",minute:"?",card:"yellow"},{team:"Brazil",name:"Roger Ibañez",minute:"?",card:"yellow"}]}};
+const EVENT_OVERRIDES={
+  "brazil|morocco":{
+    goals:[
+      {team:"Morocco",name:"Ismael Saibari",minute:"21",type:"goal"},
+      {team:"Brazil",name:"Vinícius Júnior",minute:"32",type:"goal"}
+    ],
+    cards:[
+      {team:"Brazil",name:"Casemiro",minute:"?",card:"yellow"},
+      {team:"Brazil",name:"Roger Ibañez",minute:"?",card:"yellow"}
+    ]
+  }
+};
 let curPage="jogos",curFilter="all";
 let modalId=null,modalTmr=null;
 
@@ -92,16 +103,106 @@ function espnMinute(e){const s=e?.status||{};const txt=s.displayClock||s.type?.d
 function matchKick(m){const[h,mi]=(m.t||"00:00").split(":").map(Number);const kick=new Date(m.d+"T12:00:00");kick.setHours(h||0,mi||0,0,0);return kick;}
 function fallbackStatus(m){const now=new Date(),kick=matchKick(m),end=new Date(kick.getTime()+130*60000);if(now>end)return"finished";if(now>=kick)return"live";return"upcoming";}
 function mData(m){
-  const e=espnGame(m.h,m.a);
-  if(e){const hs=espnScoreFor(e,m.h),as=espnScoreFor(e,m.a),st=espnState(e),min=espnMinute(e);const hasScore=hs!==null&&as!==null&&hs!==""&&as!=="";return{hs,as,hasScore,st,min,source:"espn"};}
-  const g=wcGame(m.h,m.a);const fb=FALLBACK_RESULTS[matchKey(m.h,m.a)];
-  if(g){let hs=g.home_score??g.home_goals??g.homeTeamScore??g.home_score_current??null;let as=g.away_score??g.away_goals??g.awayTeamScore??g.away_score_current??null;let hasScore=hs!==null&&hs!==undefined&&as!==null&&as!==undefined&&hs!==""&&as!=="";let st=g._st||fallbackStatus(m);if((!hasScore||st==="upcoming")&&fb){hs=fb.hs;as=fb.as;hasScore=true;st=fb.st;}return{hs,as,hasScore,st,min:g._min||"",source:"worldcup26.ir"};}
-  if(fb)return{hs:fb.hs,as:fb.as,hasScore:true,st:fb.st,min:"",source:"fallback"};
+  const ml = manualLiveV6(m);
+  if(ml) return ml;
+
+  const g=wcGame(m.h,m.a);
+  const fb=FALLBACK_RESULTS[matchKey(m.h,m.a)];
+
+  if(g){
+    let hs=g.home_score??g.home_goals??g.homeTeamScore??g.home_score_current??null;
+    let as=g.away_score??g.away_goals??g.awayTeamScore??g.away_score_current??null;
+    let hasScore=hs!==null&&hs!==undefined&&as!==null&&as!==undefined&&hs!==""&&as!=="";
+    let st=g._st||fallbackStatus(m);
+
+    if((!hasScore||st==="upcoming")&&fb){
+      hs=fb.hs;
+      as=fb.as;
+      hasScore=true;
+      st=fb.st;
+    }
+
+    return {hs,as,hasScore,st,min:g._min||"",pct:0,source:"worldcup26.ir"};
+  }
+
+  if(fb) return {hs:fb.hs,as:fb.as,hasScore:true,st:fb.st,min:"",pct:100,source:"fallback"};
+
   return null;
 }
 function mSt(m){const d=mData(m);return d?d.st:fallbackStatus(m);}
 function getMin(m,d){if(!d)return"";if(d.min)return d.min;if(d.st==="live")return"AO VIVO";return"";}
-function tPct(m,d){if(!d)return 0;const n=parseInt(String(d.min||"").replace(/[^0-9]/g,""));if(!isNaN(n)&&n>0)return Math.min(100,Math.max(3,Math.round(n/90*100)));if(d.st==="live")return 8;return 0;}
+function tPct(m,d){if(!d)return 0;if(typeof d.pct==="number"&&d.pct>0)return d.pct;const n=parseInt(String(d.min||"").replace(/[^0-9]/g,""));if(!isNaN(n)&&n>0)return Math.min(100,Math.max(3,Math.round(n/90*100)));if(d.st==="live")return 8;return 0;}
+
+
+/* ============================
+   V6 - MODO LOCAL SEGURO
+   Render imediato + placar/minuto de contingência.
+============================ */
+const LIVE_MATCHES = {
+  "brazil|morocco": {
+    hs: 1,
+    as: 1,
+    startISO: "2026-06-13T19:00:00-03:00",
+    status: "live",
+    source: "local-live",
+    goals: [
+      {team:"Morocco", name:"Ismael Saibari", minute:"21", type:"goal"},
+      {team:"Brazil", name:"Vinícius Júnior", minute:"32", type:"goal"}
+    ],
+    cards: [
+      {team:"Brazil", name:"Casemiro", minute:"?", card:"yellow"},
+      {team:"Brazil", name:"Roger Ibañez", minute:"?", card:"yellow"}
+    ]
+  }
+};
+
+function liveClockV6(startISO){
+  const start = new Date(startISO);
+  const elapsed = Math.floor((Date.now() - start.getTime()) / 60000);
+
+  if (elapsed < 0) return {st:"upcoming", label:"", pct:0};
+
+  if (elapsed <= 45) {
+    const m = Math.max(1, elapsed);
+    return {st:"live", label:`${m}'`, pct:Math.round(m/90*100)};
+  }
+
+  // Sem API oficial, não marcamos "Intervalo" automaticamente.
+  // De 46 a 60 min, exibimos acréscimos do 1º tempo.
+  if (elapsed <= 60) return {st:"live", label:"45+ min", pct:50};
+
+  // Após margem de intervalo, estimamos 2º tempo.
+  if (elapsed <= 120) {
+    const m = Math.min(90, Math.max(46, elapsed - 15));
+    return {st:"live", label:`${m}'`, pct:Math.round(m/90*100)};
+  }
+
+  if (elapsed <= 140) return {st:"live", label:"90+ min", pct:100};
+
+  return {st:"finished", label:"FIM", pct:100};
+}
+
+function manualLiveV6(m){
+  const x = LIVE_MATCHES[matchKey(m.h,m.a)];
+  if(!x) return null;
+  const clk = liveClockV6(x.startISO);
+  return {
+    hs:x.hs,
+    as:x.as,
+    hasScore:true,
+    st: x.status === "finished" ? "finished" : clk.st,
+    min: clk.label,
+    pct: clk.pct,
+    source:x.source || "local-live"
+  };
+}
+
+function safeRunV6(fn, ms=3500){
+  return Promise.race([
+    Promise.resolve().then(fn).catch(()=>{}),
+    new Promise(resolve=>setTimeout(resolve, ms))
+  ]);
+}
 
 const F=[
   {id:"a1",g:"A",d:"2026-06-11",t:"16:00",h:"Mexico",a:"South Africa",v:"Estádio Azteca, Cidade do México",ph:"grupos"},
@@ -442,7 +543,7 @@ document.getElementById("modalBox").addEventListener("touchmove",e=>{if(e.touche
 
 
 function cardType(b){const raw=String(b.card||b.type||b.event||b.text||b.displayName||"yellow").toLowerCase();return raw.includes("red")||raw.includes("vermelho")?"red":"yellow";}
-function overrideEvents(m){return EVENT_OVERRIDES[matchKey(m.h,m.a)]||{goals:[],cards:[]};}
+function overrideEvents(m){const k=matchKey(m.h,m.a);const a=EVENT_OVERRIDES[k]||{goals:[],cards:[]};const b=LIVE_MATCHES[k]||{goals:[],cards:[]};return{goals:[...(a.goals||[]),...(b.goals||[])],cards:[...(a.cards||[]),...(b.cards||[])]};}
 function espnDetailsFor(m){const e=espnGame(m.h,m.a);if(!e)return[];const s=ESPN_SUMMARIES[e.id];return s?.competitions?.[0]?.details||s?.details||[];}
 function espnCardsFor(m,side){const team=side==="home"?m.h:m.a;return espnDetailsFor(m).filter(d=>{const txt=String(d.type?.text||d.type?.displayName||d.text||"").toLowerCase();const tm=d.team?.displayName||d.team?.name||d.team?.abbreviation||"";return (txt.includes("yellow")||txt.includes("red")||txt.includes("card"))&&(!tm||nm(tm,team));}).map(d=>({name:d.athletes?.[0]?.displayName||d.participants?.[0]?.athlete?.displayName||d.text||"Cartão",minute:d.clock?.displayValue||d.minute||"?",card:String(d.type?.text||d.type?.displayName||d.text||"yellow").toLowerCase().includes("red")?"red":"yellow"}));}
 function cardsForMatch(m,side){const ofb=ofbMatch(m.h,m.a);let cards=[];if(ofb){const arr=side==="home"?(ofb.bookings1||ofb.cards1||[]):(ofb.bookings2||ofb.cards2||[]);cards.push(...arr);}cards.push(...espnCardsFor(m,side));const ov=overrideEvents(m).cards||[];const team=side==="home"?m.h:m.a;cards.push(...ov.filter(c=>nm(c.team,team)));const seen=new Set();return cards.filter(c=>{const k=`${canon(c.name)}|${c.minute||"?"}|${cardType(c)}`;if(seen.has(k))return false;seen.add(k);return true;});}
@@ -538,13 +639,28 @@ function render(){
 }
 
 async function loadAll(){
-  const btn=document.getElementById("refreshBtn");btn.classList.add("spin");
-  await Promise.all([fetchESPN(),fetchWCGames(),fetchWCGroups(),fetchWCScorers(),fetchOFB(),fetchFD()]);
+  const btn=document.getElementById("refreshBtn");
+  if(btn)btn.classList.add("spin");
+
+  // Render imediato para não travar em "Buscando jogos..."
   render();
+
+  await Promise.allSettled([
+    safeRunV6(fetchWCGames,3500),
+    safeRunV6(fetchWCGroups,3500),
+    safeRunV6(fetchWCScorers,3500),
+    safeRunV6(fetchOFB,3500),
+    safeRunV6(fetchFD,3500)
+  ]);
+
+  render();
+
   const now=new Date();
-  const src=espnOk?"✓ ESPN ao vivo":wcOk?"✓ worldcup26.ir":"⚠ sem dados ao vivo";
-  document.getElementById("updLbl").textContent=`${src} - ${now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`;
-  btn.classList.remove("spin");
+  const hasManual=F.some(m=>manualLiveV6(m)?.st==="live");
+  const src=hasManual?"✓ modo local ao vivo":wcOk?"✓ worldcup26.ir":"⚠ sem API ao vivo";
+  const upd=document.getElementById("updLbl");
+  if(upd)upd.textContent=`${src} - ${now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`;
+  if(btn)btn.classList.remove("spin");
 }
 function scheduleRefresh(){const lc=liveCount();const delay=lc>0?30000:300000;setTimeout(()=>{loadAll().then(scheduleRefresh);},delay);}
 loadAll().then(scheduleRefresh);
