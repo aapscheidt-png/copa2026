@@ -1,10 +1,9 @@
-// COPA 2026 - copa-data.js - V11
-// Base única de dados complementares.
-// Atualize este arquivo para placares locais, gols, cartões, posse, escalações, estatísticas e favoritos.
-// O app.js lê este arquivo primeiro e usa APIs externas apenas como complemento.
+// COPA 2026 - copa-data.js - V12 ProData
+// Base única complementar do app.
+// Atualize este arquivo para placares locais, gols, cartões, posse, escalações e estatísticas avançadas.
 
 window.COPA_DATA = {
-  version: "V11 ProData",
+  version: "V12 ProData",
   favorites: ["Brazil"],
 
   liveMatches: {
@@ -12,7 +11,7 @@ window.COPA_DATA = {
       hs: 1,
       as: 1,
       startISO: "2026-06-13T19:00:00-03:00",
-      status: "live",
+      status: "finished",
       source: "COPA_DATA",
       possession: {home: 54, away: 46},
       stats: {
@@ -46,7 +45,7 @@ window.COPA_DATA = {
     {match:"brazil|morocco", type:"yellow", team:"Brazil", player:"Roger Ibañez", minute:"?", source:"local"}
   ],
 
-  // Totais agregados quando a fonte informa o total da seleção, mas não identifica todos os jogadores.
+  // Totais por seleção quando a fonte informa o total, mas não todos os jogadores.
   disciplineTeamTotals: {
     "Paraguay": {yc:5, rc:0, source:"Axios"},
     "United States": {yc:1, rc:0, source:"Guardian"},
@@ -55,12 +54,10 @@ window.COPA_DATA = {
     "Brazil": {yc:2, rc:0, source:"local"}
   },
 
-  // Blocos prontos para evolução futura.
   teamProfiles: {
     "Brazil": {
-      coach: "",
-      captain: "",
-      notes: "Grupo C · monitorar cartões de Casemiro e Roger Ibañez."
+      group: "C",
+      notes: "Grupo C · acompanhar cartões de Casemiro e Roger Ibañez."
     }
   }
 };
