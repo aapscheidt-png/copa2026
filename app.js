@@ -8,22 +8,21 @@ const FD  = "https://api.football-data.org/v4";
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
 const FDK = "86cb611164f348ac89dcc715dda20f92";
 
-// V11 - Camada única de dados complementares
+// V12 - Camada única complementar
 const DATA = window.COPA_DATA || {events:[], liveMatches:{}, disciplineTeamTotals:{}, favorites:["Brazil"], teamProfiles:{}};
 
-function dataEvents(matchKeyValue=null,type=null){
-  let arr = DATA.events || [];
-  if(matchKeyValue) arr = arr.filter(e=>e.match===matchKeyValue);
-  if(type) arr = arr.filter(e=>e.type===type);
+function dataEvents(matchValue=null,type=null){
+  let arr=DATA.events||[];
+  if(matchValue) arr=arr.filter(e=>e.match===matchValue);
+  if(type) arr=arr.filter(e=>e.type===type);
   return arr;
 }
-function dataLive(matchKeyValue){return (DATA.liveMatches||{})[matchKeyValue]||null;}
+function dataLive(matchValue){return (DATA.liveMatches||{})[matchValue]||null;}
 function dataTeamTotal(team){
   const totals=DATA.disciplineTeamTotals||{};
   const key=Object.keys(totals).find(k=>nm(k,team));
   return key?totals[key]:null;
 }
-function dataFavTeams(){return DATA.favorites||["Brazil"];}
 
 
 const FL={"Mexico":"🇲🇽","South Africa":"🇿🇦","South Korea":"🇰🇷","Czechia":"🇨🇿","Czech Republic":"🇨🇿","Canada":"🇨🇦","Bosnia and Herzegovina":"🇧🇦","Bosnia":"🇧🇦","Qatar":"🇶🇦","Switzerland":"🇨🇭","Brazil":"🇧🇷","Morocco":"🇲🇦","Haiti":"🇭🇹","Scotland":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Australia":"🇦🇺","Türkiye":"🇹🇷","Turkey":"🇹🇷","United States":"🇺🇸","Paraguay":"🇵🇾","Germany":"🇩🇪","Curacao":"🇨🇼","Curaçao":"🇨🇼","Netherlands":"🇳🇱","Japan":"🇯🇵","Ivory Coast":"🇨🇮","Côte d'Ivoire":"🇨🇮","Ecuador":"🇪🇨","Sweden":"🇸🇪","Tunisia":"🇹🇳","Spain":"🇪🇸","Cape Verde":"🇨🇻","Belgium":"🇧🇪","Egypt":"🇪🇬","Saudi Arabia":"🇸🇦","Uruguay":"🇺🇾","Iran":"🇮🇷","New Zealand":"🇳🇿","Austria":"🇦🇹","Jordan":"🇯🇴","France":"🇫🇷","Senegal":"🇸🇳","Iraq":"🇮🇶","Norway":"🇳🇴","Argentina":"🇦🇷","Algeria":"🇩🇿","Portugal":"🇵🇹","DR Congo":"🇨🇩","Congo DR":"🇨🇩","England":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croatia":"🇭🇷","Ghana":"🇬🇭","Panama":"🇵🇦","Uzbekistan":"🇺🇿","Colombia":"🇨🇴","Korea Republic":"🇰🇷"};
@@ -810,7 +809,7 @@ function renderStats(){
   const yellowTable=yellowPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Amarelos</th></tr></thead><tbody>${yellowPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.yc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões amarelos registrados</div>';
   const redTable=redPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Vermelhos</th></tr></thead><tbody>${redPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.rc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões vermelhos registrados</div>';
 
-  return`<div class="stats-version">✓ V11 ProData · base única · stats avançadas</div>
+  return`<div class="stats-version">✓ V12 ProData · base única · cartões e stats</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l">Ao vivo agora</div></div>
@@ -858,7 +857,7 @@ function renderStats(){
 <div class="list-blk">
   <div class="lb-hdr"><span class="lhi">🟥</span><h3>VERMELHOS POR JOGADOR</h3><span class="api-src">ranking</span></div>
   ${redTable}
-  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V10 usa DISCIPLINE_LOG para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Critério: amarelo = 1 ponto; vermelho = 3 pontos.</div>
+  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V12 usa COPA_DATA + DISCIPLINE_LOG para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Critério: amarelo = 1 ponto; vermelho = 3 pontos.</div>
 </div>
 
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📋</span><h3>SOBRE O TORNEIO</h3></div>
@@ -868,23 +867,23 @@ function renderStats(){
   <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
   <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
-  <tr><td>Versão</td><td style="color:var(--gold)">V10 Cards+</td></tr>
+  <tr><td>Versão</td><td style="color:var(--gold)">V12 ProData</td></tr>
 </table></div>`;
 }
 
 
-function teamStatsV11(team){
+function teamStatsV12(team){
   const games=F.filter(m=>m.h===team||m.a===team);
   const played=games.filter(m=>{const d=mData(m);return mSt(m)==="finished"&&d&&d.hasScore;});
   const live=games.filter(m=>mSt(m)==="live");
   const next=games.find(m=>mSt(m)==="upcoming");
   const s={j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,next,live:live[0]||null,goals:[],cards:[]};
   played.forEach(m=>{
-    const d=mData(m);const isH=m.h===team;const gf=+(isH?d.hs:d.as), ga=+(isH?d.as:d.hs);
+    const d=mData(m);const isH=m.h===team;const gf=+(isH?d.hs:d.as),ga=+(isH?d.as:d.hs);
     s.j++;s.gp+=gf;s.gc+=ga;s.sg+=gf-ga;
     if(gf>ga){s.v++;s.pts+=3;}else if(gf===ga){s.e++;s.pts++;}else{s.d++;}
   });
-  F.filter(m=>mSt(m)!=="upcoming"&&(m.h===team||m.a===team)).forEach(m=>{
+  games.filter(m=>mSt(m)!=="upcoming").forEach(m=>{
     const ofb=ofbMatch(m.h,m.a);
     allGoalsForMatchV9(m,ofb).filter(g=>nm(g.team,team)).forEach(g=>s.goals.push(g));
     const side=m.h===team?"home":"away";
@@ -895,7 +894,7 @@ function teamStatsV11(team){
 
 function renderBrasil(){
   const team="Brazil";
-  const s=teamStatsV11(team);
+  const s=teamStatsV12(team);
   const prof=(DATA.teamProfiles||{})[team]||{};
   const n=s.next, live=s.live;
   const nextHtml=live?`<div class="next-match"><div class="next-team">${fl(live.h)} ${pt(live.h)} x ${pt(live.a)} ${fl(live.a)}</div><div class="next-time">AO VIVO</div></div>`:
@@ -905,7 +904,8 @@ function renderBrasil(){
   const goalsH=s.goals.length?s.goals.map((g,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">⚽</div><div class="li-inf"><div class="li-nm">${g.name||"-"}</div><div class="li-sb">${g.minute||"?"}' · ${pt(g.team)}</div></div></div>`).join(""):'<div class="no-data">Sem gols cadastrados</div>';
   const cardsH=s.cards.length?s.cards.map((c,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${cardType(c)==="red"?"🟥":"🟨"}</div><div class="li-inf"><div class="li-nm">${c.name||c.player||"-"}</div><div class="li-sb">${c.minute||"?"}'</div></div></div>`).join(""):'<div class="no-data">Sem cartões cadastrados</div>';
 
-  return `<div class="team-hero">
+  return `<div class="pro-badge">✓ V12 ProData · base única carregada</div>
+  <div class="team-hero">
     <div class="team-hero-title">${fl(team)} Brasil</div>
     <div class="team-hero-sub">Grupo C · ${prof.notes||"Painel dedicado da seleção"}</div>
     ${nextHtml}
@@ -946,6 +946,7 @@ function render(){
   if(curPage==="jogos")document.getElementById("jogosBody").innerHTML=renderJogos();
   if(curPage==="grupos")document.getElementById("gruposBody").innerHTML=renderGrupos();
   if(curPage==="stats")document.getElementById("statsBody").innerHTML=renderStats();
+  if(curPage==="brasil")document.getElementById("brasilBody").innerHTML=renderBrasil();
 }
 
 async function loadAll(){
@@ -974,3 +975,5 @@ async function loadAll(){
 }
 function scheduleRefresh(){const lc=liveCount();const delay=lc>0?30000:300000;setTimeout(()=>{loadAll().then(scheduleRefresh);},delay);}
 loadAll().then(scheduleRefresh);
+
+console.log('Copa 2026 V12 ProData carregado');
