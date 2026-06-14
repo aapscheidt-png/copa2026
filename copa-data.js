@@ -1,10 +1,10 @@
-// COPA 2026 - copa-data.js - V20 Match Center
+// COPA 2026 - copa-data.js - V21 Stats Hotfix
 // Esta versão não usa preenchimento manual como fonte principal.
 // O app busca dados automaticamente nas fontes gratuitas.
 // Este arquivo fica reservado apenas para configuração e eventuais preferências visuais.
 
 window.COPA_DATA = {
-  version: "V20 Match Center",
+  version: "V21 Stats Hotfix",
   favorites: ["Brazil"],
   liveMatches: {},
   events: [],

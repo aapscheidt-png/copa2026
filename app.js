@@ -1055,23 +1055,47 @@ function renderStats(){
   const yellowPlayers=[...Object.values(cardPlayers)].sort((a,b)=>b.yc-a.yc||b.rc-a.rc||a.name.localeCompare(b.name)).filter(p=>p.yc>0);
   const redPlayers=[...Object.values(cardPlayers)].sort((a,b)=>b.rc-a.rc||b.yc-a.yc||a.name.localeCompare(b.name)).filter(p=>p.rc>0);
 
-  // Artilheiros
-  let scorersMap={};
-  if(ofbOk&&OFB_DATA&&OFB_DATA.matches){
-    OFB_DATA.matches.forEach(m=>{
-      (m.goals1||[]).forEach(g=>{if(!g.owngoal){const k=g.name+"|"+m.team1;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team1});scorersMap[k].goals++;}});
-      (m.goals2||[]).forEach(g=>{if(!g.owngoal){const k=g.name+"|"+m.team2;scorersMap[k]=(scorersMap[k]||{name:g.name,goals:0,team:m.team2});scorersMap[k].goals++;}});
-    });
+  // Artilheiros - V21 Stats Hotfix
+  // Correção: a V20 contava alguns gols duas vezes.
+  // Primeiro contava os gols vindos do openfootball e depois recontava os mesmos
+  // dentro de allGoalsForMatchV9(). Agora o ranking nasce de uma única lista
+  // deduplicada por jogo + jogador + seleção + minuto.
+  function cleanScorerV21(name){
+    return String(name||"")
+      .replace(/\s*\(.*?\)\s*/g," ")
+      .replace(/\s+/g," ")
+      .trim();
   }
+
+  let scorersMap={};
+  const countedGoalsV21=new Set();
+
   F.filter(m=>mSt(m)!=="upcoming").forEach(m=>{
     const ofb=ofbMatch(m.h,m.a);
-    allGoalsForMatchV9(m,ofb).forEach(g=>{
-      const k=(g.name||"-")+"|"+(g.team||"");
-      scorersMap[k]=(scorersMap[k]||{name:g.name||"-",goals:0,team:g.team||""});
-      if(!scorersMap[k]._countedV10){scorersMap[k].goals++;scorersMap[k]._countedV10=true;}
-    });
+    allGoalsForMatchV9(m,ofb)
+      .filter(g=>!g.owngoal)
+      .forEach(g=>{
+        const name=cleanScorerV21(g.name||g.player||"");
+        const team=g.team || (g.side==="home"?m.h:m.a) || "";
+        if(!name || name==="-" || canon(name)==="jogador") return;
+
+        const goalKey=[
+          m.id || matchKey(m.h,m.a),
+          canon(name),
+          canon(team),
+          String(g.minute||g.time||g.clock||"?").replace(/[^0-9+]/g,"")
+        ].join("|");
+
+        if(countedGoalsV21.has(goalKey)) return;
+        countedGoalsV21.add(goalKey);
+
+        const playerKey=canon(name)+"|"+canon(team);
+        scorersMap[playerKey]=(scorersMap[playerKey]||{name:name,goals:0,team:team});
+        scorersMap[playerKey].goals++;
+      });
   });
-  const sList=Object.values(scorersMap).sort((a,b)=>b.goals-a.goals).slice(0,12);
+
+  const sList=Object.values(scorersMap).sort((a,b)=>b.goals-a.goals||a.name.localeCompare(b.name)).slice(0,12);
 
   const biggest=finished.map(m=>{const d=mData(m);const hs=+d.hs,as=+d.as;return{m,hs,as,diff:Math.abs(hs-as),total:hs+as,winner:hs>as?m.h:as>hs?m.a:"Empate"};}).sort((a,b)=>b.diff-a.diff||b.total-a.total).slice(0,8);
   const maxGP=topAtk[0]?.gp||1;
@@ -1094,7 +1118,7 @@ function renderStats(){
   const yellowTable=yellowPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Amarelos</th></tr></thead><tbody>${yellowPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.yc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões amarelos registrados</div>';
   const redTable=redPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Vermelhos</th></tr></thead><tbody>${redPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.rc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões vermelhos registrados</div>';
 
-  return`<div class="stats-version">✓ V20 Match Center · ESPN automático · cartões sem pontos</div>
+  return`<div class="stats-version">✓ V21 Stats Hotfix · ESPN automático · artilheiros corrigidos · cartões sem pontos</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l">Ao vivo agora</div></div>
@@ -1152,7 +1176,7 @@ function renderStats(){
   <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
   <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
-  <tr><td>Versão</td><td style="color:var(--gold)">V20 Match Center</td></tr>
+  <tr><td>Versão</td><td style="color:var(--gold)">V21 Stats Hotfix</td></tr>
 </table></div>`;
 }
 
@@ -1189,7 +1213,7 @@ function renderBrasil(){
   const goalsH=s.goals.length?s.goals.map((g,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">⚽</div><div class="li-inf"><div class="li-nm">${g.name||"-"}</div><div class="li-sb">${g.minute||"?"}' · ${pt(g.team)}</div></div></div>`).join(""):'<div class="no-data">Sem gols cadastrados</div>';
   const cardsH=s.cards.length?s.cards.map((c,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${cardType(c)==="red"?"🟥":"🟨"}</div><div class="li-inf"><div class="li-nm">${c.name||c.player||"-"}</div><div class="li-sb">${c.minute||"?"}'</div></div></div>`).join(""):'<div class="no-data">Sem cartões cadastrados</div>';
 
-  return `<div class="pro-badge">✓ V20 Match Center · base única carregada</div>
+  return `<div class="pro-badge">✓ V21 Stats Hotfix · base única carregada</div>
   <div class="team-hero">
     <div class="team-hero-title">${fl(team)} Brasil</div>
     <div class="team-hero-sub">Grupo C · ${prof.notes||"Painel dedicado da seleção"}</div>
@@ -1565,4 +1589,4 @@ async function loadAll(){
 function scheduleRefresh(){const lc=liveCount();const delay=lc>0?30000:300000;setTimeout(()=>{loadAll().then(scheduleRefresh);},delay);}
 loadAll().then(scheduleRefresh);
 
-console.log('Copa 2026 V20 Match Center carregado');
+console.log('Copa 2026 V21 Stats Hotfix carregado');
