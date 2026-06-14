@@ -1,12 +1,13 @@
-// COPA 2026 - copa-data.js - V12 ProData
+// COPA 2026 - copa-data.js - V13 MatchCenter
 // Base única complementar do app.
-// Atualize este arquivo para placares locais, gols, cartões, posse, escalações e estatísticas avançadas.
+// Atualize aqui placares locais, gols, cartões, posse, escalações, estatísticas avançadas e totais disciplinares.
 
 window.COPA_DATA = {
-  version: "V12 ProData",
+  version: "V13 MatchCenter",
   favorites: ["Brazil"],
 
   liveMatches: {
+    // Jogo encerrado, mantido aqui para placar, gols locais e stats complementares.
     "brazil|morocco": {
       hs: 1,
       as: 1,
@@ -24,6 +25,27 @@ window.COPA_DATA = {
       lineups: {
         home: [],
         away: []
+      }
+    },
+
+    // Jogo ao vivo em modo local: garante placar, cronômetro e card ao vivo mesmo se a API falhar.
+    // Se houver gol, inclua em events abaixo. Se houver escalação oficial, substitua os placeholders.
+    "haiti|scotland": {
+      hs: 0,
+      as: 0,
+      startISO: "2026-06-13T22:00:00-03:00",
+      status: "live",
+      source: "COPA_DATA",
+      stats: {
+        shots: {home: null, away: null},
+        shotsOnTarget: {home: null, away: null},
+        corners: {home: null, away: null},
+        fouls: {home: null, away: null},
+        offsides: {home: null, away: null}
+      },
+      lineups: {
+        home: ["Aguardando escalação oficial"],
+        away: ["Aguardando escalação oficial"]
       }
     }
   },
@@ -46,6 +68,7 @@ window.COPA_DATA = {
   ],
 
   // Totais por seleção quando a fonte informa o total, mas não todos os jogadores.
+  // Usado somente no quadro "Cartões por seleção".
   disciplineTeamTotals: {
     "Paraguay": {yc:5, rc:0, source:"Axios"},
     "United States": {yc:1, rc:0, source:"Guardian"},
