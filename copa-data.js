@@ -1,10 +1,10 @@
-// COPA 2026 - copa-data.js - V17 GitHubPages Hotfix
+// COPA 2026 - copa-data.js - V18 SemPastas Auto
 // Esta versão não usa preenchimento manual como fonte principal.
 // O app busca dados automaticamente nas fontes gratuitas.
 // Este arquivo fica reservado apenas para configuração e eventuais preferências visuais.
 
 window.COPA_DATA = {
-  version: "V17 GitHubPages Hotfix",
+  version: "V18 SemPastas Auto",
   favorites: ["Brazil"],
   liveMatches: {},
   events: [],

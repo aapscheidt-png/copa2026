@@ -9,7 +9,7 @@ const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
 const FDK = "86cb611164f348ac89dcc715dda20f92";
 
 // V12 - Camada única complementar
-const DATA = window.COPA_DATA || {events:[], liveMatches:{}, disciplineTeamTotals:{}, favorites:["Brazil"], teamProfiles:{}};
+const DATA = window.ESPN/free || {events:[], liveMatches:{}, disciplineTeamTotals:{}, favorites:["Brazil"], teamProfiles:{}};
 
 function dataEvents(matchValue=null,type=null){
   let arr=DATA.events||[];
@@ -116,24 +116,63 @@ function matchKick(m){const[h,mi]=(m.t||"00:00").split(":").map(Number);const ki
 // ============================
 let ESPN_EVENTS = [];
 
-async function fetchStaticESPN(){
-  const urls=[
-    `data/espn-scoreboard.json?ts=${Date.now()}`,
-    `./data/espn-scoreboard.json?ts=${Date.now()}`
+async function espnFetchJson(url){
+  const attempts = [
+    url,
+    "https://api.allorigins.win/raw?url=" + encodeURIComponent(url)
   ];
-  for(const url of urls){
+
+  for(const u of attempts){
     try{
-      const r=await fetch(url,{cache:"no-store"});
+      const r = await fetch(u,{cache:"no-store",signal:AbortSignal.timeout(9000)});
       if(!r.ok)continue;
-      const d=await r.json();
-      ESPN_EVENTS=Array.isArray(d.events)?d.events:[];
-      ESPN_SUMMARIES=d.summaries||{};
-      espnOk=ESPN_EVENTS.length>0;
-      if(espnOk)return true;
+      return await r.json();
     }catch(e){}
   }
-  espnOk=false;
-  return false;
+  return null;
+}
+
+function espnDatesToFetchV18(){
+  const start=new Date("2026-06-11T12:00:00");
+  const end=new Date();
+  end.setDate(end.getDate()+1);
+  const out=[];
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,"0");
+    const day=String(d.getDate()).padStart(2,"0");
+    out.push(`${y}${m}${day}`);
+  }
+  return out.slice(-35);
+}
+
+async function fetchStaticESPN(){
+  ESPN_EVENTS=[];
+  ESPN_SUMMARIES={};
+
+  const dates=espnDatesToFetchV18();
+
+  for(const ds of dates){
+    const url=`${ESPN}/scoreboard?dates=${ds}&limit=200`;
+    const d=await espnFetchJson(url);
+    if(d&&Array.isArray(d.events)){
+      d.events.forEach(ev=>{
+        if(!ESPN_EVENTS.find(x=>String(x.id)===String(ev.id)))ESPN_EVENTS.push(ev);
+      });
+    }
+  }
+
+  const needsSummary=ESPN_EVENTS
+    .filter(e=>(e.status?.type?.state||"")!=="pre")
+    .slice(-60);
+
+  for(const ev of needsSummary){
+    const s=await espnFetchJson(`${ESPN}/summary?event=${ev.id}`);
+    if(s)ESPN_SUMMARIES[String(ev.id)]=s;
+  }
+
+  espnOk=ESPN_EVENTS.length>0;
+  return espnOk;
 }
 
 function espnTeamName(c){
@@ -844,6 +883,108 @@ function cardsForMatch(m,side){
 }
 
 
+
+/* ============================
+   V18 ESPN DETAIL HOTFIX
+   Usa ESPN direto no navegador, sem pastas:
+   - placares e status
+   - autores dos gols
+   - cartões quando disponíveis
+   - estatísticas de jogo quando disponíveis
+============================ */
+function espnSummaryFor(m){
+  const ev=espnEventFor(m);
+  if(!ev||!ev.id)return null;
+  return ESPN_SUMMARIES[String(ev.id)] || null;
+}
+
+function espnCompFor(m){
+  const ev=espnEventFor(m);
+  const s=espnSummaryFor(m);
+  return s?.header?.competitions?.[0] || s?.competitions?.[0] || ev?.competitions?.[0] || null;
+}
+
+function espnDetailsFor(m){
+  const ev=espnEventFor(m);
+  const s=espnSummaryFor(m);
+  const comp=espnCompFor(m);
+  return s?.details || s?.header?.competitions?.[0]?.details || s?.competitions?.[0]?.details || comp?.details || [];
+}
+
+function espnBoxTeamFor(m,side){
+  const s=espnSummaryFor(m);
+  const boxTeams=s?.boxscore?.teams || s?.boxscore?.statistics || [];
+  const team=side==="home"?m.h:m.a;
+  return (boxTeams||[]).find(x=>{
+    const n=x?.team?.displayName||x?.team?.name||x?.team?.shortDisplayName||x?.displayName||"";
+    return sameTeamV16(n,team);
+  })||null;
+}
+
+function espnStatsObjFor(m,side){
+  const comp=espnCompFor(m);
+  const team=side==="home"?m.h:m.a;
+  const c=(comp?.competitors||[]).find(x=>sameTeamV16(espnTeamName(x),team));
+  const b=espnBoxTeamFor(m,side);
+  return c?.statistics?.length ? c : b;
+}
+
+function espnTeamStatsFor(m){
+  const h=espnStatsObjFor(m,"home"), a=espnStatsObjFor(m,"away");
+  if(!h&&!a)return null;
+
+  const get=(obj,names)=>{
+    const arr=obj?.statistics || obj?.stats || [];
+    const it=(arr||[]).find(x=>{
+      const nm=String(x.name||x.abbreviation||x.label||x.displayName||"");
+      const lbl=nm.toLowerCase();
+      return names.some(n=>lbl===n.toLowerCase()||lbl.includes(n.toLowerCase()));
+    });
+    if(!it)return null;
+    const v=String(it.displayValue??it.value??it.display??"").replace("%","");
+    const num=parseFloat(v);
+    return Number.isFinite(num)?num:v;
+  };
+
+  return {
+    possession:{home:get(h,["possessionPct","possession","PP"]),away:get(a,["possessionPct","possession","PP"])},
+    shots:{home:get(h,["totalShots","total shots","shots","SHOT"]),away:get(a,["totalShots","total shots","shots","SHOT"])},
+    shotsOnTarget:{home:get(h,["shotsOnTarget","shots on target","SOG"]),away:get(a,["shotsOnTarget","shots on target","SOG"])},
+    corners:{home:get(h,["wonCorners","corners","corner kicks","CW"]),away:get(a,["wonCorners","corners","corner kicks","CW"])},
+    fouls:{home:get(h,["foulsCommitted","fouls","FC"]),away:get(a,["foulsCommitted","fouls","FC"])}
+  };
+}
+
+function cardsForMatch(m,side){
+  const team=side==="home"?m.h:m.a;
+  const ofb=ofbMatch(m.h,m.a);
+  let cards=[];
+
+  if(ofb){
+    const arr=side==="home"?(ofb.bookings1||ofb.cards1||[]):(ofb.bookings2||ofb.cards2||[]);
+    cards.push(...(arr||[]).map(c=>({...c,team})));
+  }
+
+  cards.push(...espnCardsFor(m,side));
+  cards.push(...disciplineCardsForMatch(m,side));
+
+  const ov=overrideEvents(m).cards||[];
+  cards.push(...ov.filter(c=>sameTeamV16(c.team,team)));
+
+  const seen=new Set();
+  return cards.filter(c=>{
+    const type=cardType(c);
+    const name=c.name||c.player||c.athlete||c.displayName||c.text||"Jogador";
+    const key=`${canon(name)}|${canon(team)}|${String(c.minute||c.time||c.clock||"?")}|${type}`;
+    if(seen.has(key))return false;
+    seen.add(key);
+    c.name=name;
+    c.team=c.team||team;
+    c.card=type;
+    return true;
+  });
+}
+
 function renderStats(){
   const finished=F.filter(m=>{const d=mData(m);return mSt(m)==="finished"&&d&&d.hasScore;});
   const liveMatches=F.filter(m=>mSt(m)==="live");
@@ -953,7 +1094,7 @@ function renderStats(){
   const yellowTable=yellowPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Amarelos</th></tr></thead><tbody>${yellowPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.yc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões amarelos registrados</div>';
   const redTable=redPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Vermelhos</th></tr></thead><tbody>${redPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.rc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões vermelhos registrados</div>';
 
-  return`<div class="stats-version">✓ V17 GitHubPages Hotfix · ESPN automático · cartões sem pontos</div>
+  return`<div class="stats-version">✓ V18 SemPastas Auto · ESPN automático · cartões sem pontos</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l">Ao vivo agora</div></div>
@@ -1001,7 +1142,7 @@ function renderStats(){
 <div class="list-blk">
   <div class="lb-hdr"><span class="lhi">🟥</span><h3>VERMELHOS POR JOGADOR</h3><span class="api-src">ranking</span></div>
   ${redTable}
-  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V14 usa ESPN automático + fontes gratuitas para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Sem cálculo de pontos disciplinares.</div>
+  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V18 usa ESPN direto + fontes gratuitas para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Sem cálculo de pontos disciplinares.</div>
 </div>
 
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📋</span><h3>SOBRE O TORNEIO</h3></div>
@@ -1011,7 +1152,7 @@ function renderStats(){
   <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
   <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
-  <tr><td>Versão</td><td style="color:var(--gold)">V17 GitHubPages Hotfix</td></tr>
+  <tr><td>Versão</td><td style="color:var(--gold)">V18 SemPastas Auto</td></tr>
 </table></div>`;
 }
 
@@ -1048,7 +1189,7 @@ function renderBrasil(){
   const goalsH=s.goals.length?s.goals.map((g,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">⚽</div><div class="li-inf"><div class="li-nm">${g.name||"-"}</div><div class="li-sb">${g.minute||"?"}' · ${pt(g.team)}</div></div></div>`).join(""):'<div class="no-data">Sem gols cadastrados</div>';
   const cardsH=s.cards.length?s.cards.map((c,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${cardType(c)==="red"?"🟥":"🟨"}</div><div class="li-inf"><div class="li-nm">${c.name||c.player||"-"}</div><div class="li-sb">${c.minute||"?"}'</div></div></div>`).join(""):'<div class="no-data">Sem cartões cadastrados</div>';
 
-  return `<div class="pro-badge">✓ V17 GitHubPages Hotfix · base única carregada</div>
+  return `<div class="pro-badge">✓ V18 SemPastas Auto · base única carregada</div>
   <div class="team-hero">
     <div class="team-hero-title">${fl(team)} Brasil</div>
     <div class="team-hero-sub">Grupo C · ${prof.notes||"Painel dedicado da seleção"}</div>
@@ -1069,8 +1210,8 @@ function renderBrasil(){
     <div class="pro-row"><div class="pro-l">Saldo</div><div class="pro-v">${s.sg>0?"+":""}${s.sg}</div></div>
   </div>
 
-  <div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>GOLS DO BRASIL</h3><span class="api-src">COPA_DATA</span></div>${goalsH}</div>
-  <div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>CARTÕES DO BRASIL</h3><span class="api-src">COPA_DATA</span></div>${cardsH}</div>
+  <div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>GOLS DO BRASIL</h3><span class="api-src">ESPN/free</span></div>${goalsH}</div>
+  <div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>CARTÕES DO BRASIL</h3><span class="api-src">ESPN/free</span></div>${cardsH}</div>
 
   <div class="pro-card">
     <div class="pro-title">🧮 Simulador rápido do Grupo C</div>
@@ -1112,7 +1253,7 @@ async function loadAll(){
 
   const now=new Date();
   const liveEspn=F.some(m=>espnDataFor(m)?.st==="live");
-  const src=espnOk?"✓ GitHub Actions ESPN":wcOk?"✓ worldcup26.ir":"✓ aguardando atualização automática";
+  const src=espnOk?"✓ ESPN direto":wcOk?"✓ worldcup26.ir":"✓ aguardando fonte gratuita";
   const upd=document.getElementById("updLbl");
   if(upd)upd.textContent=`${src} - ${now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`;
   document.getElementById("apiWarn")?.classList.remove("on");
@@ -1121,4 +1262,4 @@ async function loadAll(){
 function scheduleRefresh(){const lc=liveCount();const delay=lc>0?30000:300000;setTimeout(()=>{loadAll().then(scheduleRefresh);},delay);}
 loadAll().then(scheduleRefresh);
 
-console.log('Copa 2026 V17 GitHubPages Hotfix carregado');
+console.log('Copa 2026 V18 SemPastas Auto carregado');
