@@ -283,7 +283,7 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 .unknown-row{opacity:.82}
 
 
-/* V19 SemPastas Hotfix */
+/* V20 Match Center */
 .pro-badge{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
 .team-hero{background:linear-gradient(135deg,rgba(0,156,59,.18),rgba(245,197,24,.08));border:1px solid rgba(0,156,59,.28);border-radius:var(--r);padding:14px;margin-bottom:10px}
 .team-hero-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:var(--gold)}
@@ -307,7 +307,7 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 .data-ok{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04)}
 
 
-/* V19 SemPastas Hotfix */
+/* V20 Match Center */
 .v14-ok{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
 .empty-light{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text3);padding:16px;text-align:center}
 .disc-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
@@ -316,6 +316,45 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 
 .build-marker{color:var(--green)!important;font-weight:800}
 .api-warn{display:none!important}
+
+
+/* V20 Match Center - tempo correto, estatísticas e escalações */
+.match-stats-card{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:15px;padding:12px;margin-bottom:14px;overflow:hidden}
+.match-stats-head{display:flex;align-items:center;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px}
+.match-stats-head span{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap}
+.match-stats-title{font-family:'Bebas Neue',sans-serif;letter-spacing:1.4px;color:var(--gold);font-size:15px;text-align:center}
+.team-stat-row{display:grid;grid-template-columns:38px 1fr 38px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.035)}
+.team-stat-row:last-child{border-bottom:none}
+.team-stat-val{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text);line-height:1;text-align:center}
+.team-stat-mid{min-width:0}
+.team-stat-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.5px;color:var(--text3);text-align:center;margin-bottom:4px;text-transform:uppercase}
+.team-stat-bars{height:5px;border-radius:6px;background:rgba(255,255,255,.06);display:flex;overflow:hidden}
+.team-stat-home{height:100%;background:linear-gradient(90deg,var(--gold),#ff7a18)}
+.team-stat-away{height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa)}
+.lineup-card{background:var(--dark3);border:1px solid rgba(255,255,255,.07);border-radius:15px;padding:12px;margin-bottom:14px}
+.lineup-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.lineup-team{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;color:var(--text);display:flex;align-items:center;gap:5px;min-width:0}
+.lineup-form{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;background:rgba(245,197,24,.08);border:1px solid rgba(245,197,24,.18);padding:3px 8px;border-radius:999px}
+.pitch-v20{position:relative;border:1px solid rgba(255,255,255,.08);border-radius:14px;min-height:330px;padding:14px 8px;background:linear-gradient(180deg,rgba(34,197,94,.08),rgba(13,21,35,.3));overflow:hidden}
+.pitch-v20::before{content:'';position:absolute;inset:18px 10px;border:2px solid rgba(255,255,255,.07);border-radius:12px;pointer-events:none}
+.pitch-v20::after{content:'';position:absolute;left:12px;right:12px;top:50%;height:2px;background:rgba(255,255,255,.055);pointer-events:none}
+.pitch-row{position:relative;z-index:1;display:flex;justify-content:center;gap:8px;margin:13px 0;min-height:54px}
+.pitch-player{width:23%;max-width:82px;min-width:58px;text-align:center;position:relative}
+.pitch-avatar{width:38px;height:38px;margin:0 auto 4px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#ff6b00);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;color:#09101c;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.10)}
+.pitch-name{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;color:var(--text);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pitch-num{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);margin-top:1px}
+.pitch-badges{position:absolute;top:-3px;right:10px;display:flex;gap:2px;flex-direction:column}
+.pitch-badges span{font-size:10px;background:rgba(7,12,24,.72);border-radius:999px;padding:1px 3px;line-height:1.1}
+.bench-v20{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.bench-title{grid-column:1/-1;font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--text3);letter-spacing:1.2px;margin-top:2px}
+.bench-item{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text);background:rgba(255,255,255,.035);border-radius:8px;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subs-card-v20{background:var(--dark3);border-radius:10px;padding:8px;margin-top:8px}
+.sub-line-v20{display:flex;align-items:center;gap:7px;font-family:'Barlow Condensed',sans-serif;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.035)}
+.sub-line-v20:last-child{border-bottom:none}
+.sub-min-v20{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:15px;min-width:30px;text-align:center}
+.lineup-unavailable{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text3);line-height:1.45;padding:12px;background:rgba(255,255,255,.035);border-radius:10px}
+.v20-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
+
 </style>
 </head>
 <body>
@@ -325,7 +364,7 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
   <div class="hdr-top">
     <div>
       <div class="logo">⚽ Copa <span style="color:var(--text)">2026</span></div>
-      <div class="logo-sub">EUA · Canadá · México &nbsp;|&nbsp; <span>created by Pscheidt</span> · <span id="versionBadge">V19 SemPastas Hotfix</span></div>
+      <div class="logo-sub">EUA · Canadá · México &nbsp;|&nbsp; <span>created by Pscheidt</span> · <span id="versionBadge">V20 Match Center</span></div>
     </div>
     <div class="hdr-right">
       <div class="live-pill" id="livePill">AO VIVO</div>
@@ -387,7 +426,7 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 </nav>
 
 <!-- JAVASCRIPT EXTERNO -->
-<script src="copa-data.js?v=19"></script>
-<script src="app.js?v=19"></script>
+<script src="copa-data.js?v=20"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

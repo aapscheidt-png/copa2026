@@ -1094,7 +1094,7 @@ function renderStats(){
   const yellowTable=yellowPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Amarelos</th></tr></thead><tbody>${yellowPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.yc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões amarelos registrados</div>';
   const redTable=redPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Vermelhos</th></tr></thead><tbody>${redPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.rc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões vermelhos registrados</div>';
 
-  return`<div class="stats-version">✓ V19 SemPastas Hotfix · ESPN automático · cartões sem pontos</div>
+  return`<div class="stats-version">✓ V20 Match Center · ESPN automático · cartões sem pontos</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l">Ao vivo agora</div></div>
@@ -1142,7 +1142,7 @@ function renderStats(){
 <div class="list-blk">
   <div class="lb-hdr"><span class="lhi">🟥</span><h3>VERMELHOS POR JOGADOR</h3><span class="api-src">ranking</span></div>
   ${redTable}
-  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V19 usa ESPN direto + fontes gratuitas para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Sem cálculo de pontos disciplinares.</div>
+  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V20 usa ESPN direto + fontes gratuitas para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Sem cálculo de pontos disciplinares.</div>
 </div>
 
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📋</span><h3>SOBRE O TORNEIO</h3></div>
@@ -1152,7 +1152,7 @@ function renderStats(){
   <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
   <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
-  <tr><td>Versão</td><td style="color:var(--gold)">V19 SemPastas Hotfix</td></tr>
+  <tr><td>Versão</td><td style="color:var(--gold)">V20 Match Center</td></tr>
 </table></div>`;
 }
 
@@ -1189,7 +1189,7 @@ function renderBrasil(){
   const goalsH=s.goals.length?s.goals.map((g,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">⚽</div><div class="li-inf"><div class="li-nm">${g.name||"-"}</div><div class="li-sb">${g.minute||"?"}' · ${pt(g.team)}</div></div></div>`).join(""):'<div class="no-data">Sem gols cadastrados</div>';
   const cardsH=s.cards.length?s.cards.map((c,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${cardType(c)==="red"?"🟥":"🟨"}</div><div class="li-inf"><div class="li-nm">${c.name||c.player||"-"}</div><div class="li-sb">${c.minute||"?"}'</div></div></div>`).join(""):'<div class="no-data">Sem cartões cadastrados</div>';
 
-  return `<div class="pro-badge">✓ V19 SemPastas Hotfix · base única carregada</div>
+  return `<div class="pro-badge">✓ V20 Match Center · base única carregada</div>
   <div class="team-hero">
     <div class="team-hero-title">${fl(team)} Brasil</div>
     <div class="team-hero-sub">Grupo C · ${prof.notes||"Painel dedicado da seleção"}</div>
@@ -1234,6 +1234,309 @@ function render(){
   if(curPage==="brasil")document.getElementById("brasilBody").innerHTML=renderBrasil();
 }
 
+
+
+/* ============================
+   V20 MATCH CENTER
+   - Corrige barra de tempo: lê 76', 93:57, 90+6 e detalhes ESPN.
+   - Cria painel de estatísticas em barras.
+   - Tenta ler escalações/titulares/banco da ESPN quando disponíveis.
+   - Não inventa jogador quando a fonte não entrega.
+============================ */
+function cleanTextV20(v){return String(v||"").replace(/\u0000/g,"").trim();}
+function soccerClockV20(){
+  const raw=[...arguments].map(cleanTextV20).filter(Boolean).join(" | ");
+  if(!raw)return {label:"",minute:null,pct:0};
+  const txt=raw.toLowerCase();
+  if(/\b(ft|full.?time|final|fim)\b/.test(txt))return {label:"FIM",minute:90,pct:100};
+  if(/\b(ht|half.?time|intervalo)\b/.test(txt))return {label:"Intervalo",minute:45,pct:50};
+
+  let minute=null, label="";
+  let m=raw.match(/(\d{1,3})\s*:\s*\d{1,2}/);
+  if(m){
+    minute=parseInt(m[1],10);
+    label=m[0];
+  }
+  if(minute===null){
+    m=raw.match(/(\d{1,2})\s*\+\s*(\d{1,2})/);
+    if(m){minute=parseInt(m[1],10)+parseInt(m[2],10);label=`${m[1]}+${m[2]}'`;}
+  }
+  if(minute===null){
+    m=raw.match(/(\d{1,3})\s*(?:'|’|min\b|\b)/);
+    if(m){minute=parseInt(m[1],10);label=`${minute}'`;}
+  }
+  if(minute===null)return {label:raw,minute:null,pct:0};
+  if(!label)label=`${minute}'`;
+  const pct=Math.min(100,Math.max(3,Math.round((Math.min(minute,90)/90)*100)));
+  return {label,minute,pct};
+}
+
+function espnStatusFor(m){
+  const comp=espnCompFor(m); if(!comp)return null;
+  const st=comp.status||{};
+  const typ=st.type||{};
+  const state=typ.state||"";
+  const completed=!!typ.completed;
+  const appSt=completed||state==="post"?"finished":state==="in"?"live":"upcoming";
+  const clockInfo=soccerClockV20(st.displayClock,typ.shortDetail,typ.detail,typ.description);
+  let label=clockInfo.label||cleanTextV20(st.displayClock||typ.shortDetail||typ.detail||"");
+  let pct=appSt==="finished"?100:(appSt==="live"?(clockInfo.pct||8):0);
+  if(appSt==="live"&&!label)label="AO VIVO";
+  return {st:appSt,min:label,pct,detail:typ.detail||typ.shortDetail||typ.description||""};
+}
+
+function tPct(m,d){
+  if(!d)return 0;
+  const clk=soccerClockV20(d.min,d.detail);
+  if(clk.pct>0)return clk.pct;
+  if(typeof d.pct==="number"&&d.pct>0)return Math.min(100,Math.max(3,Math.round(d.pct)));
+  if(d.st==="finished")return 100;
+  if(d.st==="live")return 8;
+  return 0;
+}
+
+function statExtractV20(obj,names){
+  const arr=obj?.statistics||obj?.stats||[];
+  const it=(arr||[]).find(x=>{
+    const nm=String(x.name||x.abbreviation||x.label||x.displayName||x.shortDisplayName||"").toLowerCase();
+    const dn=String(x.displayName||x.label||"").toLowerCase();
+    return names.some(n=>nm===n.toLowerCase()||dn===n.toLowerCase()||nm.includes(n.toLowerCase())||dn.includes(n.toLowerCase()));
+  });
+  if(!it)return null;
+  const raw=String(it.displayValue??it.value??it.display??"").replace("%","").replace(",",".");
+  const num=parseFloat(raw);
+  return Number.isFinite(num)?num:raw;
+}
+
+function espnTeamStatsFor(m){
+  const h=espnStatsObjFor(m,"home"), a=espnStatsObjFor(m,"away");
+  if(!h&&!a)return null;
+  const get=(obj,names)=>statExtractV20(obj,names);
+  return {
+    possession:{home:get(h,["possessionPct","possession","posse","PP"]),away:get(a,["possessionPct","possession","posse","PP"])},
+    shots:{home:get(h,["totalShots","total shots","shots","chutes","SHOT"]),away:get(a,["totalShots","total shots","shots","chutes","SHOT"])},
+    shotsOnTarget:{home:get(h,["shotsOnTarget","shots on target","chutes a gol","on target","SOG"]),away:get(a,["shotsOnTarget","shots on target","chutes a gol","on target","SOG"])},
+    corners:{home:get(h,["wonCorners","corners","corner kicks","escanteios","CW"]),away:get(a,["wonCorners","corners","corner kicks","escanteios","CW"])},
+    totalPasses:{home:get(h,["totalPasses","passes","total passes","passes total"]),away:get(a,["totalPasses","passes","total passes","passes total"])},
+    passAccuracy:{home:get(h,["accuratePassesPct","passingAccuracy","pass accuracy","% de precisão","precisão de passes"]),away:get(a,["accuratePassesPct","passingAccuracy","pass accuracy","% de precisão","precisão de passes"])},
+    offsides:{home:get(h,["offsides","impedimentos"]),away:get(a,["offsides","impedimentos"])},
+    fouls:{home:get(h,["foulsCommitted","fouls","faltas","FC"]),away:get(a,["foulsCommitted","fouls","faltas","FC"])}
+  };
+}
+
+function mergeStatsV20(autoStats,liveStats,m){
+  const out={};
+  const keys=["possession","shots","shotsOnTarget","corners","totalPasses","passAccuracy","offsides","fouls"];
+  keys.forEach(k=>{
+    const h=autoStats?.[k]?.home ?? liveStats?.[k]?.home ?? null;
+    const a=autoStats?.[k]?.away ?? liveStats?.[k]?.away ?? null;
+    if(h!==null||a!==null)out[k]={home:h,away:a};
+  });
+  const hy=cardsForMatch(m,"home").filter(c=>cardType(c)==="yellow").length;
+  const ay=cardsForMatch(m,"away").filter(c=>cardType(c)==="yellow").length;
+  if(hy||ay)out.yellowCards={home:hy,away:ay};
+  return out;
+}
+
+function statNumV20(v){const n=parseFloat(String(v??"").replace("%","").replace(",","."));return Number.isFinite(n)?n:null;}
+function statValV20(v,suffix=""){return v===null||v===undefined||v===""?"—":`${v}${suffix}`;}
+function renderStatRowV20(label,obj,suffix=""){
+  if(!obj||(obj.home===null&&obj.away===null&&obj.home===undefined&&obj.away===undefined))return "";
+  const hn=statNumV20(obj.home), an=statNumV20(obj.away);
+  let hp=50, ap=50;
+  if(hn!==null||an!==null){
+    const h=Math.max(0,hn??0), a=Math.max(0,an??0), total=h+a;
+    if(total>0){hp=Math.round((h/total)*100);ap=100-hp;}
+  }
+  return `<div class="team-stat-row"><div class="team-stat-val">${statValV20(obj.home,suffix)}</div><div class="team-stat-mid"><div class="team-stat-label">${label}</div><div class="team-stat-bars"><div class="team-stat-home" style="width:${hp}%"></div><div class="team-stat-away" style="width:${ap}%"></div></div></div><div class="team-stat-val">${statValV20(obj.away,suffix)}</div></div>`;
+}
+function renderTeamStatsPanelV20(m,st){
+  if(!st||!Object.keys(st).length)return "";
+  const rows=[
+    renderStatRowV20("% de posse",st.possession,"%"),
+    renderStatRowV20("Chutes",st.shots),
+    renderStatRowV20("Chutes a gol",st.shotsOnTarget),
+    renderStatRowV20("Escanteios",st.corners),
+    renderStatRowV20("Total de passes",st.totalPasses),
+    renderStatRowV20("% de precisão de passes",st.passAccuracy,"%"),
+    renderStatRowV20("Impedimentos",st.offsides),
+    renderStatRowV20("Faltas",st.fouls),
+    renderStatRowV20("Cartões amarelos",st.yellowCards)
+  ].filter(Boolean).join("");
+  if(!rows)return "";
+  return `<div class="modal-sec"><div class="modal-sec-title">📊 Match Center · Estatísticas</div><div class="match-stats-card"><div class="match-stats-head"><span>${fl(m.h)} ${pt(m.h)}</span><div class="match-stats-title">Estatísticas do time</div><span>${pt(m.a)} ${fl(m.a)}</span></div>${rows}</div></div>`;
+}
+
+function pNameV20(p){const a=p?.athlete||p?.player||p?.person||p||{};return a.displayName||a.fullName||a.shortName||a.name||p?.displayName||p?.fullName||p?.name||"";}
+function pJerseyV20(p){const a=p?.athlete||p?.player||p||{};return p?.jersey||p?.jerseyNumber||a.jersey||a.jerseyNumber||"";}
+function pPosV20(p){const a=p?.athlete||p?.player||p||{};const pos=p?.position||a.position||{};return pos.abbreviation||pos.displayName||pos.name||p?.positionName||"";}
+function pStarterV20(p,label){const l=String(label||"").toLowerCase();if(/sub|bench|reserve|banco|suplente/.test(l))return false;if(/start|lineup|titular|formation/.test(l))return true;if(p?.starter===true||p?.isStarter===true)return true;if(p?.substitute===true||p?.isSubstitute===true)return false;return null;}
+function playerCleanV20(p,label){
+  const name=pNameV20(p); if(!name)return null;
+  return {name,number:pJerseyV20(p),pos:pPosV20(p),starter:pStarterV20(p,label),raw:p};
+}
+function addPlayersFromV20(info,arr,label){
+  (arr||[]).forEach(p=>{
+    const cp=playerCleanV20(p,label); if(!cp)return;
+    const target=cp.starter===false?info.bench:info.starters;
+    if(!target.find(x=>canon(x.name)===canon(cp.name)))target.push(cp);
+  });
+}
+function formationFromObjV20(obj){
+  const candidates=[obj?.formation,obj?.lineup?.formation,obj?.team?.formation,obj?.stats?.formation,obj?.displayFormation,obj?.formationName].filter(Boolean);
+  const found=candidates.find(x=>/\d\s*-\s*\d/.test(String(x)));
+  return found?String(found).replace(/\s+/g,""):"";
+}
+function collectLineupBlockV20(info,block){
+  if(!block)return;
+  info.formation=info.formation||formationFromObjV20(block);
+  addPlayersFromV20(info,block.starters||block.startingLineup||block.lineup?.starters||block.lineup?.players,"starters");
+  addPlayersFromV20(info,block.substitutes||block.bench||block.reserves||block.lineup?.substitutes,"substitutes");
+  addPlayersFromV20(info,block.roster||block.entries||block.players||block.athletes,"roster");
+  (block.statistics||block.stats||[]).forEach(sec=>{
+    const label=sec.name||sec.displayName||sec.label||"";
+    if(/start|lineup|titular|formation|substitute|bench|reserve|banco|suplente/i.test(label)){
+      addPlayersFromV20(info,sec.athletes||sec.players||sec.entries,label);
+    }
+  });
+}
+function teamBlockMatchV20(block,team){
+  const n=block?.team?.displayName||block?.team?.name||block?.team?.shortDisplayName||block?.displayName||block?.name||"";
+  return sameTeamV16(n,team);
+}
+function espnLineupsFor(m){
+  const s=espnSummaryFor(m);
+  const out={home:{formation:"",starters:[],bench:[],source:"ESPN/free"},away:{formation:"",starters:[],bench:[],source:"ESPN/free"}};
+  const blocks=[];
+  blocks.push(...(s?.boxscore?.players||[]));
+  blocks.push(...(s?.boxscore?.teams||[]));
+  blocks.push(...(s?.lineups||[]));
+  blocks.push(...(s?.rosters||[]));
+  blocks.push(...(s?.competitions?.[0]?.competitors||[]));
+  blocks.push(...(s?.header?.competitions?.[0]?.competitors||[]));
+  blocks.forEach(b=>{
+    if(teamBlockMatchV20(b,m.h))collectLineupBlockV20(out.home,b);
+    if(teamBlockMatchV20(b,m.a))collectLineupBlockV20(out.away,b);
+  });
+  // Remove listas fracas/estatísticas que não representam escalação.
+  [out.home,out.away].forEach(info=>{
+    info.starters=info.starters.filter((p,i,a)=>a.findIndex(x=>canon(x.name)===canon(p.name))===i).slice(0,16);
+    info.bench=info.bench.filter((p,i,a)=>a.findIndex(x=>canon(x.name)===canon(p.name))===i).slice(0,16);
+    if(info.starters.length>0&&info.starters.length<7)info.starters=[];
+  });
+  return out;
+}
+function mergeLineupsV20(m,live){
+  const auto=espnLineupsFor(m);
+  const fromLive={home:{formation:live?.lineups?.homeFormation||"",starters:[],bench:[],source:"local-live"},away:{formation:live?.lineups?.awayFormation||"",starters:[],bench:[],source:"local-live"}};
+  (live?.lineups?.home||[]).forEach(x=>fromLive.home.starters.push({name:String(x),number:"",pos:""}));
+  (live?.lineups?.away||[]).forEach(x=>fromLive.away.starters.push({name:String(x),number:"",pos:""}));
+  return {
+    home:(auto.home.starters.length||auto.home.bench.length)?auto.home:fromLive.home,
+    away:(auto.away.starters.length||auto.away.bench.length)?auto.away:fromLive.away
+  };
+}
+function shortNameV20(name){const parts=String(name||"").trim().split(/\s+/);if(parts.length<=1)return parts[0]||"";return `${parts[0][0]}. ${parts.slice(-1)[0]}`;}
+function initialsV20(name){return String(name||"?").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase();}
+function playerBadgesV20(m,team,name){
+  const ofb=ofbMatch(m.h,m.a);
+  const goals=allGoalsForMatchV9(m,ofb).filter(g=>sameTeamV16(g.team,team)&&canon(g.name)===canon(name));
+  const side=sameTeamV16(team,m.h)?"home":"away";
+  const cards=cardsForMatch(m,side).filter(c=>canon(c.name||c.player)===canon(name));
+  const badges=[]; if(goals.length)badges.push("⚽".repeat(Math.min(2,goals.length))); if(cards.some(c=>cardType(c)==="yellow"))badges.push("🟨"); if(cards.some(c=>cardType(c)==="red"))badges.push("🟥");
+  return badges.map(b=>`<span>${b}</span>`).join("");
+}
+function formationRowsV20(players,formation){
+  const ps=(players||[]).slice(0,11);
+  if(!ps.length)return [];
+  let nums=String(formation||"").split("-").map(x=>parseInt(x,10)).filter(Boolean);
+  if(nums.length&&ps.length>=10)nums=[1,...nums];
+  else if(ps.length>=11)nums=[1,4,3,3];
+  else if(ps.length>=7)nums=[1,Math.min(4,ps.length-1),Math.max(0,ps.length-5)];
+  else nums=[ps.length];
+  const rows=[];let i=0;
+  nums.forEach(n=>{if(n>0){rows.push(ps.slice(i,i+n));i+=n;}});
+  if(i<ps.length)rows.push(ps.slice(i));
+  return rows.filter(r=>r.length);
+}
+function renderPitchV20(m,team,info){
+  if(!info?.starters?.length)return "";
+  const rows=formationRowsV20(info.starters,info.formation);
+  const rowHtml=rows.map(r=>`<div class="pitch-row">${r.map(p=>`<div class="pitch-player"><div class="pitch-badges">${playerBadgesV20(m,team,p.name)}</div><div class="pitch-avatar">${initialsV20(p.name)}</div><div class="pitch-name">${shortNameV20(p.name)}</div><div class="pitch-num">${p.number||p.pos||""}</div></div>`).join("")}</div>`).join("");
+  const bench=(info.bench||[]).slice(0,10).map(p=>`<div class="bench-item">${p.number?`${p.number} `:""}${shortNameV20(p.name)}</div>`).join("");
+  return `<div class="lineup-card"><div class="lineup-top"><div class="lineup-team">${fl(team)} ${pt(team)}</div><div class="lineup-form">${info.formation||"Formação"}</div></div><div class="pitch-v20">${rowHtml}</div>${bench?`<div class="bench-v20"><div class="bench-title">Banco</div>${bench}</div>`:""}</div>`;
+}
+function renderLineupsV20(m,lineups){
+  const h=renderPitchV20(m,m.h,lineups.home);
+  const a=renderPitchV20(m,m.a,lineups.away);
+  if(h||a)return `<div class="modal-sec"><div class="modal-sec-title">👥 Escalações</div>${h}${a}</div>`;
+  if(mSt(m)==="live"||mSt(m)==="finished")return `<div class="modal-sec"><div class="modal-sec-title">👥 Escalações</div><div class="lineup-unavailable">Escalação ainda não disponível na fonte gratuita. A V20 já está preparada para exibir titulares, banco e formação quando a ESPN entregar esses dados.</div></div>`;
+  return "";
+}
+function espnSubsForMatchV20(m){
+  return espnDetailsFor(m).filter(d=>{
+    const txt=String(d.type?.text||d.type?.displayName||d.text||"").toLowerCase();
+    return txt.includes("substitution")||txt.includes("substitute")||txt.includes("substituição");
+  }).map(d=>{
+    const teamId=String(d.team?.id||"");
+    const side=String(espnTeamIdFor(m,"home"))===teamId?"home":"away";
+    const team=side==="home"?m.h:m.a;
+    const txt=String(d.text||"");
+    const ath=d.athletesInvolved||d.athletes||[];
+    let inn=ath[0]?.displayName||ath[0]?.fullName||"Entrada";
+    let out=ath[1]?.displayName||ath[1]?.fullName||"Saída";
+    const rep=txt.match(/\.\s*([^\.]+?)\s+replaces\s+([^\.]+)\.?/i);
+    if(rep){inn=rep[1].trim();out=rep[2].trim();}
+    return {team,side,minute:d.clock?.displayValue||"?",in:inn,out};
+  });
+}
+function renderSubsV20(m,ofb){
+  const s1=ofb?(ofb.subs1||ofb.substitutions1||[]):[],s2=ofb?(ofb.subs2||ofb.substitutions2||[]):[];
+  const arr=[...s1.map(s=>({side:"home",team:m.h,minute:s.minute||"?",in:s.player_in||s.in||"Entrada",out:s.player_out||s.out||"Saída"})),...s2.map(s=>({side:"away",team:m.a,minute:s.minute||"?",in:s.player_in||s.in||"Entrada",out:s.player_out||s.out||"Saída"})),...espnSubsForMatchV20(m)];
+  const ded=dedupeEventsV9(arr.map(x=>({name:`${x.in}|${x.out}`,team:x.team,minute:x.minute,type:"sub",...x}))).sort((a,b)=>parseInt(a.minute||999)-parseInt(b.minute||999));
+  if(!ded.length)return "";
+  return `<div class="modal-sec"><div class="modal-sec-title">🔄 Substituições</div><div class="subs-card-v20">${ded.map(s=>`<div class="sub-line-v20"><div class="sub-min-v20">${s.minute}'</div><div>${s.side==="home"?fl(m.h):fl(m.a)} <span style="color:var(--green)">▲</span> ${s.in} <span style="color:var(--live)">▼</span> ${s.out}</div></div>`).join("")}</div></div>`;
+}
+
+function buildDetail(m,ofb){
+  let html="";
+  const live=liveExtraFor(m);
+  const autoStats=espnTeamStatsFor(m);
+  const mergedStats=mergeStatsV20(autoStats,live?.stats,m);
+  html+=renderTeamStatsPanelV20(m,mergedStats);
+
+  const goals=allGoalsForMatchV9(m,ofb);
+  if(goals.length){
+    html+='<div class="modal-sec"><div class="modal-sec-title">⚽ Gols</div>';
+    goals.forEach(g=>{
+      const isH=g.side==="home";
+      const icon=g.owngoal?"🔴":g.penalty?"🎯":"⚽";
+      const lbl=g.owngoal?" (contra)":g.penalty?" (pen)":"";
+      html+=`<div class="ev-row"><div class="ev-min">${g.minute||"?"}'</div><div class="ev-icon">${icon}</div><div class="ev-name">${g.name||"-"}${lbl}</div><div class="ev-team">${isH?fl(m.h):fl(m.a)}</div></div>`;
+    });
+    html+="</div>";
+  }
+
+  const b1=cardsForMatch(m,"home"), b2=cardsForMatch(m,"away");
+  const cards=dedupeEventsV9([...b1.map(b=>({...b,side:"home",team:m.h})),...b2.map(b=>({...b,side:"away",team:m.a}))]).sort((a,b)=>parseInt(a.minute||999)-parseInt(b.minute||999));
+  if(cards.length){
+    html+='<div class="modal-sec"><div class="modal-sec-title">🟨 Cartões</div>';
+    cards.forEach(b=>{
+      const isH=b.side==="home";
+      const icon=cardType(b)==="red"?"🟥":"🟨";
+      html+=`<div class="ev-row"><div class="ev-min">${b.minute||"?"}'</div><div class="ev-icon">${icon}</div><div class="ev-name">${b.name||b.player||"-"}</div><div class="ev-team">${isH?fl(m.h):fl(m.a)}</div></div>`;
+    });
+    html+="</div>";
+  }
+
+  const lineups=mergeLineupsV20(m,live);
+  html+=renderLineupsV20(m,lineups);
+  html+=renderSubsV20(m,ofb);
+
+  if(!html)html+='<div class="no-data">Eventos ainda não disponíveis nas fontes atuais</div>';
+  return html;
+}
+
 async function loadAll(){
   const btn=document.getElementById("refreshBtn");
   if(btn)btn.classList.add("spin");
@@ -1262,4 +1565,4 @@ async function loadAll(){
 function scheduleRefresh(){const lc=liveCount();const delay=lc>0?30000:300000;setTimeout(()=>{loadAll().then(scheduleRefresh);},delay);}
 loadAll().then(scheduleRefresh);
 
-console.log('Copa 2026 V19 SemPastas Hotfix carregado');
+console.log('Copa 2026 V20 Match Center carregado');
