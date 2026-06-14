@@ -9,7 +9,7 @@ const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
 const FDK = "86cb611164f348ac89dcc715dda20f92";
 
 // V12 - Camada única complementar
-const DATA = window.ESPN/free || {events:[], liveMatches:{}, disciplineTeamTotals:{}, favorites:["Brazil"], teamProfiles:{}};
+const DATA = window.COPA_DATA || {events:[], liveMatches:{}, disciplineTeamTotals:{}, favorites:["Brazil"], teamProfiles:{}};
 
 function dataEvents(matchValue=null,type=null){
   let arr=DATA.events||[];
@@ -1094,7 +1094,7 @@ function renderStats(){
   const yellowTable=yellowPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Amarelos</th></tr></thead><tbody>${yellowPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.yc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões amarelos registrados</div>';
   const redTable=redPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Vermelhos</th></tr></thead><tbody>${redPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.rc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões vermelhos registrados</div>';
 
-  return`<div class="stats-version">✓ V18 SemPastas Auto · ESPN automático · cartões sem pontos</div>
+  return`<div class="stats-version">✓ V19 SemPastas Hotfix · ESPN automático · cartões sem pontos</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l">Ao vivo agora</div></div>
@@ -1142,7 +1142,7 @@ function renderStats(){
 <div class="list-blk">
   <div class="lb-hdr"><span class="lhi">🟥</span><h3>VERMELHOS POR JOGADOR</h3><span class="api-src">ranking</span></div>
   ${redTable}
-  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V18 usa ESPN direto + fontes gratuitas para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Sem cálculo de pontos disciplinares.</div>
+  <div class="stat-source-warning"><b>Fonte dos cartões:</b> V19 usa ESPN direto + fontes gratuitas para jogadores identificados e DISCIPLINE_TEAM_TOTALS para totais por seleção quando a matéria não lista todos os nomes. Sem cálculo de pontos disciplinares.</div>
 </div>
 
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">📋</span><h3>SOBRE O TORNEIO</h3></div>
@@ -1152,7 +1152,7 @@ function renderStats(){
   <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
   <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
-  <tr><td>Versão</td><td style="color:var(--gold)">V18 SemPastas Auto</td></tr>
+  <tr><td>Versão</td><td style="color:var(--gold)">V19 SemPastas Hotfix</td></tr>
 </table></div>`;
 }
 
@@ -1189,7 +1189,7 @@ function renderBrasil(){
   const goalsH=s.goals.length?s.goals.map((g,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">⚽</div><div class="li-inf"><div class="li-nm">${g.name||"-"}</div><div class="li-sb">${g.minute||"?"}' · ${pt(g.team)}</div></div></div>`).join(""):'<div class="no-data">Sem gols cadastrados</div>';
   const cardsH=s.cards.length?s.cards.map((c,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${cardType(c)==="red"?"🟥":"🟨"}</div><div class="li-inf"><div class="li-nm">${c.name||c.player||"-"}</div><div class="li-sb">${c.minute||"?"}'</div></div></div>`).join(""):'<div class="no-data">Sem cartões cadastrados</div>';
 
-  return `<div class="pro-badge">✓ V18 SemPastas Auto · base única carregada</div>
+  return `<div class="pro-badge">✓ V19 SemPastas Hotfix · base única carregada</div>
   <div class="team-hero">
     <div class="team-hero-title">${fl(team)} Brasil</div>
     <div class="team-hero-sub">Grupo C · ${prof.notes||"Painel dedicado da seleção"}</div>
@@ -1262,4 +1262,4 @@ async function loadAll(){
 function scheduleRefresh(){const lc=liveCount();const delay=lc>0?30000:300000;setTimeout(()=>{loadAll().then(scheduleRefresh);},delay);}
 loadAll().then(scheduleRefresh);
 
-console.log('Copa 2026 V18 SemPastas Auto carregado');
+console.log('Copa 2026 V19 SemPastas Hotfix carregado');
