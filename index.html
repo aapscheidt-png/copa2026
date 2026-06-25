@@ -217,144 +217,15 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 .spin-ic{font-size:34px;display:block;margin-bottom:12px;animation:bounce .85s infinite}
 .empty{text-align:center;padding:28px;color:var(--text3);font-family:'Barlow Condensed',sans-serif;font-size:13px}
 .src{text-align:center;font-size:10px;color:var(--text3);padding:14px 12px 0;line-height:1.7}
+.br-row{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid rgba(255,255,255,.028);cursor:pointer}
+.br-row:last-child{border-bottom:none}
+.br-opp{font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--text);display:flex;align-items:center;gap:6px}
+.br-sc{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-align:right}
+.li-cards{display:flex;flex-wrap:wrap;gap:2px;max-width:80px;justify-content:flex-end}
+.yc{display:inline-block;width:9px;height:12px;background:var(--ycard);border-radius:1px}
+.rc{display:inline-block;width:9px;height:12px;background:var(--rcard);border-radius:1px}
+.mc-goals{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text3);margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.04)}
 .src a{color:var(--gold);text-decoration:none}
-
-/* V6 - cartões visíveis na aba Stats */
-.li-cards{display:flex;align-items:center;justify-content:flex-end;gap:4px;min-width:54px}
-.yc,.rc{display:inline-block;width:10px;height:14px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
-.yc{background:var(--ycard)}
-.rc{background:var(--rcard)}
-.stat-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04)}
-.stat-note b{color:var(--gold)}
-
-
-/* V7 - estatísticas avançadas */
-.stat-mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px}
-.stat-mini{background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:10px 7px;text-align:center}
-.stat-mini-n{font-family:'Bebas Neue',sans-serif;font-size:25px;color:var(--gold);line-height:1}
-.stat-mini-l{font-family:'Barlow Condensed',sans-serif;font-size:9px;color:var(--text3);letter-spacing:.7px;text-transform:uppercase;margin-top:3px}
-.card-score{display:flex;align-items:center;gap:6px;justify-content:flex-end;min-width:74px}
-.card-num{font-family:'Bebas Neue',sans-serif;font-size:21px;color:var(--gold)}
-.card-num.red{color:var(--rcard)}
-.card-num.yellow{color:var(--ycard)}
-.stat-tabs-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
-.stat-tabs-note b{color:var(--gold)}
-
-
-/* V8 - Stats+ e jogo ao vivo avançado */
-.stats-version{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
-.disc-table{width:100%;border-collapse:collapse;font-family:'Barlow Condensed',sans-serif}
-.disc-table th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;text-align:center;padding:8px 6px;border-bottom:1px solid var(--border2)}
-.disc-table th:first-child{text-align:left;padding-left:12px}
-.disc-table td{font-size:13px;color:var(--text);font-weight:700;text-align:center;padding:9px 6px;border-bottom:1px solid rgba(255,255,255,.035)}
-.disc-table td:first-child{text-align:left;padding-left:12px}
-.disc-team{display:flex;align-items:center;gap:7px;min-width:0}
-.disc-rk{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text3);width:18px;text-align:center}
-.disc-rk.top{color:var(--gold)}
-.disc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-pill{display:inline-flex;align-items:center;gap:4px;justify-content:center}
-.cardbox{display:inline-block;width:10px;height:14px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
-.cardbox.y{background:var(--ycard)}
-.cardbox.r{background:var(--rcard)}
-.poss-wrap{background:var(--dark3);border-radius:10px;padding:10px 12px}
-.poss-row{display:flex;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;margin-bottom:6px}
-.poss-bar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,.07)}
-.poss-h{background:var(--gold)}
-.poss-a{background:var(--live)}
-.live-columns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.team-box{background:var(--dark3);border-radius:10px;padding:9px}
-.team-box-title{font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;margin-bottom:6px}
-.player-line{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.025)}
-.player-line:last-child{border-bottom:none}
-.stat-source-warning{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:9px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
-.stat-source-warning b{color:var(--gold)}
-
-
-/* V9 - ajustes de gols e cartões */
-.data-status{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:9px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
-.data-status b{color:var(--gold)}
-.goal-chip{display:flex;align-items:center;gap:5px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text3);margin-top:5px;line-height:1.3}
-.goal-chip span{color:var(--text);font-weight:700}
-
-
-/* V10 - cartões agregados por seleção */
-.agg-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
-.agg-note b{color:var(--gold)}
-.unknown-row{opacity:.82}
-
-
-/* V21 Stats Hotfix */
-.pro-badge{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
-.team-hero{background:linear-gradient(135deg,rgba(0,156,59,.18),rgba(245,197,24,.08));border:1px solid rgba(0,156,59,.28);border-radius:var(--r);padding:14px;margin-bottom:10px}
-.team-hero-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:var(--gold)}
-.team-hero-sub{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text3);margin-top:3px}
-.next-match{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:10px;background:rgba(255,255,255,.04);border-radius:10px}
-.next-team{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:5px}
-.next-time{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--gold)}
-.pro-card{background:var(--card);border:1px solid var(--border2);border-radius:var(--r);padding:12px;margin-bottom:10px}
-.pro-title{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1.8px;color:var(--gold);display:flex;align-items:center;gap:7px;margin-bottom:9px}
-.pro-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.035);font-family:'Barlow Condensed',sans-serif}
-.pro-row:last-child{border-bottom:none}
-.pro-l{color:var(--text3);font-size:12px}
-.pro-v{color:var(--text);font-weight:800;font-size:14px;text-align:right}
-.sim-box{background:var(--dark3);border-radius:10px;padding:10px;margin-top:8px}
-.sim-inputs{display:grid;grid-template-columns:1fr 44px 44px 1fr;align-items:center;gap:5px;font-family:'Barlow Condensed',sans-serif;font-size:12px}
-.sim-score{background:var(--dark);border:1px solid var(--border2);color:var(--gold);border-radius:8px;padding:7px;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:18px}
-.adv-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
-.adv-stat{background:var(--dark3);border-radius:9px;padding:9px;text-align:center}
-.adv-n{font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--gold)}
-.adv-l{font-family:'Barlow Condensed',sans-serif;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px}
-.data-ok{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04)}
-
-
-/* V21 Stats Hotfix */
-.v14-ok{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
-.empty-light{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text3);padding:16px;text-align:center}
-.disc-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);padding:8px 13px;border-top:1px solid rgba(255,255,255,.04);line-height:1.35}
-.disc-note b{color:var(--gold)}
-.source-pill{font-family:'Barlow Condensed',sans-serif;font-size:9px;color:var(--green);margin-left:auto}
-
-.build-marker{color:var(--green)!important;font-weight:800}
-.api-warn{display:none!important}
-
-
-/* V21 Stats Hotfix - tempo correto, estatísticas e escalações */
-.match-stats-card{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:15px;padding:12px;margin-bottom:14px;overflow:hidden}
-.match-stats-head{display:flex;align-items:center;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px}
-.match-stats-head span{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap}
-.match-stats-title{font-family:'Bebas Neue',sans-serif;letter-spacing:1.4px;color:var(--gold);font-size:15px;text-align:center}
-.team-stat-row{display:grid;grid-template-columns:38px 1fr 38px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.035)}
-.team-stat-row:last-child{border-bottom:none}
-.team-stat-val{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text);line-height:1;text-align:center}
-.team-stat-mid{min-width:0}
-.team-stat-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.5px;color:var(--text3);text-align:center;margin-bottom:4px;text-transform:uppercase}
-.team-stat-bars{height:5px;border-radius:6px;background:rgba(255,255,255,.06);display:flex;overflow:hidden}
-.team-stat-home{height:100%;background:linear-gradient(90deg,var(--gold),#ff7a18)}
-.team-stat-away{height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa)}
-.lineup-card{background:var(--dark3);border:1px solid rgba(255,255,255,.07);border-radius:15px;padding:12px;margin-bottom:14px}
-.lineup-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.lineup-team{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;color:var(--text);display:flex;align-items:center;gap:5px;min-width:0}
-.lineup-form{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;background:rgba(245,197,24,.08);border:1px solid rgba(245,197,24,.18);padding:3px 8px;border-radius:999px}
-.pitch-v20{position:relative;border:1px solid rgba(255,255,255,.08);border-radius:14px;min-height:330px;padding:14px 8px;background:linear-gradient(180deg,rgba(34,197,94,.08),rgba(13,21,35,.3));overflow:hidden}
-.pitch-v20::before{content:'';position:absolute;inset:18px 10px;border:2px solid rgba(255,255,255,.07);border-radius:12px;pointer-events:none}
-.pitch-v20::after{content:'';position:absolute;left:12px;right:12px;top:50%;height:2px;background:rgba(255,255,255,.055);pointer-events:none}
-.pitch-row{position:relative;z-index:1;display:flex;justify-content:center;gap:8px;margin:13px 0;min-height:54px}
-.pitch-player{width:23%;max-width:82px;min-width:58px;text-align:center;position:relative}
-.pitch-avatar{width:38px;height:38px;margin:0 auto 4px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#ff6b00);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;color:#09101c;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.10)}
-.pitch-name{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;color:var(--text);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pitch-num{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--text3);margin-top:1px}
-.pitch-badges{position:absolute;top:-3px;right:10px;display:flex;gap:2px;flex-direction:column}
-.pitch-badges span{font-size:10px;background:rgba(7,12,24,.72);border-radius:999px;padding:1px 3px;line-height:1.1}
-.bench-v20{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
-.bench-title{grid-column:1/-1;font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--text3);letter-spacing:1.2px;margin-top:2px}
-.bench-item{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text);background:rgba(255,255,255,.035);border-radius:8px;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.subs-card-v20{background:var(--dark3);border-radius:10px;padding:8px;margin-top:8px}
-.sub-line-v20{display:flex;align-items:center;gap:7px;font-family:'Barlow Condensed',sans-serif;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.035)}
-.sub-line-v20:last-child{border-bottom:none}
-.sub-min-v20{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:15px;min-width:30px;text-align:center}
-.lineup-unavailable{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text3);line-height:1.45;padding:12px;background:rgba(255,255,255,.035);border-radius:10px}
-.v20-note{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);padding:0 2px 9px}
-
 </style>
 </head>
 <body>
@@ -364,7 +235,7 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
   <div class="hdr-top">
     <div>
       <div class="logo">⚽ Copa <span style="color:var(--text)">2026</span></div>
-      <div class="logo-sub">EUA · Canadá · México &nbsp;|&nbsp; <span>created by Pscheidt</span> · <span id="versionBadge">V21 Stats Hotfix</span></div>
+      <div class="logo-sub">EUA · Canadá · México &nbsp;|&nbsp; <span>created by Pscheidt</span></div>
     </div>
     <div class="hdr-right">
       <div class="live-pill" id="livePill">AO VIVO</div>
@@ -391,7 +262,12 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
   
   <div class="api-warn" id="apiWarn">⚠️ APIs offline · exibindo horários programados</div>
   <div id="jogosBody"><div class="loading-box"><span class="spin-ic">⚽</span>Buscando jogos...</div></div>
-  <div class="src">Placares: <a href="https://www.espn.com/soccer/scoreboard">ESPN</a> / <a href="https://worldcup26.ir">worldcup26.ir</a> · Eventos: openfootball</div>
+  <div class="src">Placares: <a href="https://www.thesportsdb.com">TheSportsDB</a> · Stats: <a href="https://football-data.org">football-data.org</a></div>
+</div>
+
+<!-- PAGE: BRASIL -->
+<div class="pg" id="pg-brasil">
+  <div id="brasilBody"><div class="loading-box"><span class="spin-ic">🇧🇷</span>Carregando dados do Brasil...</div></div>
 </div>
 
 <!-- PAGE: GRUPOS -->
@@ -402,11 +278,6 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 <!-- PAGE: STATS -->
 <div class="pg" id="pg-stats">
   <div id="statsBody"><div class="loading-box"><span class="spin-ic">🏅</span>Carregando estatísticas...</div></div>
-</div>
-
-<!-- PAGE: BRASIL -->
-<div class="pg" id="pg-brasil">
-  <div id="brasilBody"><div class="loading-box"><span class="spin-ic">🇧🇷</span>Carregando Brasil...</div></div>
 </div>
 
 <!-- MODAL -->
@@ -420,13 +291,12 @@ body{color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding-
 <!-- NAV -->
 <nav class="nav">
   <button class="nav-btn active" id="nav-jogos"  onclick="goPage('jogos')"><span class="ni">⚽</span>Jogos</button>
-  <button class="nav-btn"        id="nav-grupos" onclick="goPage('grupos')"><span class="ni">📊</span>Grupos</button>
   <button class="nav-btn"        id="nav-brasil" onclick="goPage('brasil')"><span class="ni">🇧🇷</span>Brasil</button>
+  <button class="nav-btn"        id="nav-grupos" onclick="goPage('grupos')"><span class="ni">📊</span>Grupos</button>
   <button class="nav-btn"        id="nav-stats"  onclick="goPage('stats')"><span class="ni">🏅</span>Stats</button>
 </nav>
 
 <!-- JAVASCRIPT EXTERNO -->
-<script src="copa-data.js?v=21"></script>
-<script src="app.js?v=21"></script>
+<script src="app.js"></script>
 </body>
 </html>
