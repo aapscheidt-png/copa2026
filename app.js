@@ -197,6 +197,7 @@ async function fetchWC(){
   }catch(e){console.warn("WC:",e);wcOk=false;}
 }
 
+let FD_MATCHES=[];  // matches with bookings/goals/assists/stats
 async function fetchFD(){
   try{
     const r=await fetch(`${FD_URL}/competitions/WC/scorers?season=2026&limit=20`,
@@ -206,6 +207,23 @@ async function fetchFD(){
     FD_SC=d.scorers||[];
     fdOk=true;
   }catch(e){fdOk=false;}
+}
+async function fetchFDMatches(){
+  try{
+    const r=await fetch(`${FD_URL}/competitions/WC/matches?season=2026`,
+      {headers:{"X-Auth-Token":FD_KEY},signal:AbortSignal.timeout(10000)});
+    if(!r.ok)throw 0;
+    const d=await r.json();
+    FD_MATCHES=d.matches||[];
+  }catch(e){console.warn("FD matches:",e);}
+}
+function fdMatch(h,a){
+  return FD_MATCHES.find(m=>
+    canon(m.homeTeam?.name||"")===h&&canon(m.awayTeam?.name||"")===a
+  )||FD_MATCHES.find(m=>{
+    const mh=canon(m.homeTeam?.name||""),ma=canon(m.awayTeam?.name||"");
+    return(mh.slice(0,5)===h.slice(0,5))&&(ma.slice(0,5)===a.slice(0,5));
+  })||null;
 }
 
 // ── MATCH FINDERS ──
@@ -599,6 +617,59 @@ function renderBrasil(){
     </div>`;
   }
 
+  // Cartões do Brasil via FD
+  let brYC=0,brRC=0;
+  const brCardPlayers={};
+  brGroupMatches.forEach(m=>{
+    const fd=fdMatch(m.h,m.a);if(!fd)return;
+    const isBRhome=m.h==="Brazil";
+    (fd.bookings||[]).forEach(b=>{
+      const teamName=canon(b.team?.name||"");
+      if(teamName!=="Brazil")return;
+      const card=(b.card||"").toUpperCase();
+      if(card.includes("RED"))brRC++;
+      else brYC++;
+      const pn=b.player?.name||"?";
+      if(!brCardPlayers[pn])brCardPlayers[pn]={name:pn,yc:0,rc:0};
+      if(card.includes("RED"))brCardPlayers[pn].rc++;
+      else brCardPlayers[pn].yc++;
+    });
+  });
+  const brCardList=Object.values(brCardPlayers).sort((a,b)=>(b.yc+b.rc*3)-(a.yc+a.rc*3));
+  let brCardsHTML="";
+  if(brYC+brRC>0){
+    brCardsHTML=`<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA DO BRASIL</h3><span class="api-src">✓ football-data.org</span></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 13px">
+    <div class="mi"><div class="mi-val" style="color:var(--ycard)">${brYC}</div><div class="mi-lbl">Amarelos</div></div>
+    <div class="mi"><div class="mi-val" style="color:var(--live)">${brRC}</div><div class="mi-lbl">Vermelhos</div></div>
+  </div>
+  ${brCardList.map(p=>`<div class="li"><div class="li-fl">🇧🇷</div><div class="li-inf"><div class="li-nm">${p.name}</div><div class="li-sb">${p.yc>0?"🟨".repeat(p.yc):""}${p.rc>0?"🟥".repeat(p.rc):""}</div></div></div>`).join("")}
+</div>`;
+  }else{brCardsHTML="";}
+
+  // Assistências do Brasil via FD
+  const brAssists={};
+  brGroupMatches.forEach(m=>{
+    const fd=fdMatch(m.h,m.a);if(!fd)return;
+    const isBRhome=m.h==="Brazil";
+    (fd.goals||[]).forEach(g=>{
+      const teamName=canon(g.team?.name||"");
+      if(teamName!=="Brazil")return;
+      const an=g.assist?.name;
+      if(!an)return;
+      brAssists[an]=(brAssists[an]||0)+1;
+    });
+  });
+  const brAssistList=Object.entries(brAssists).sort((a,b)=>b[1]-a[1]);
+  let brAssistsHTML="";
+  if(brAssistList.length){
+    brAssistsHTML=`<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🎯</span><h3>ASSISTÊNCIAS DO BRASIL</h3><span class="api-src">✓ football-data.org</span></div>
+  ${brAssistList.map(([n,a],i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">🇧🇷</div><div class="li-inf"><div class="li-nm">${n}</div></div><div class="li-val">${a} 🎯</div></div>`).join("")}
+</div>`;
+  }
+
   // Stats do Brasil
   let totalBrGols=0,brContra=0;
   brGroupMatches.forEach(m=>{
@@ -622,9 +693,11 @@ ${nextHTML}
   ${scorersHTML}
 </div>
 <div class="list-blk">
-  <div class="lb-hdr"><span class="lhi">🇧🇷</span><h3>RESULTADOS</h3></div>
+  <div class="lb-hdr"><span class="lhi">🇧🇷</span><h3>RESULTADOS E ESTATÍSTICAS</h3></div>
   ${resultsHTML||'<div class="no-data">Jogos ainda não realizados</div>'}
 </div>
+${brCardsHTML}
+${brAssistsHTML}
 </div>`;
 }
 
@@ -844,20 +917,32 @@ function renderStats(){
     sList=FD_SC.slice(0,15).map(s=>({name:s.player?.name||"—",goals:s.goals||0,pen:s.penalties||0,team:canon(s.team?.name||"")}));
   }
 
-  // Stats de times
+  // Stats de times — cartões via FD (mais completo) ou OFB
   let teamStats=[];
   ["A","B","C","D","E","F","G","H","I","J","K","L"].forEach(gl=>{
     calcGroup(gl).filter(t=>t.j>0).forEach(t=>{
       let yc=0,rc=0;
       F.filter(m=>m.g===gl&&m.ph==="grupos").forEach(m=>{
+        // Tenta FD primeiro (mais confiável para cartões)
+        const fd=fdMatch(m.h,m.a);
+        if(fd&&fd.bookings&&fd.bookings.length>0){
+          fd.bookings.forEach(b=>{
+            const teamName=canon(b.team?.name||"");
+            if(teamName!==t.nm)return;
+            const card=(b.card||"").toUpperCase();
+            if(card.includes("RED"))rc++;
+            else yc++;
+          });
+          return;
+        }
+        // Fallback: OFB bookings
         const ofb=ofbMatch(m.h,m.a);if(!ofb||!ofb.score)return;
         const isH=m.h===t.nm;
         const bk=isH?(ofb.bookings1||[]):(ofb.bookings2||[]);
         bk.forEach(b=>{
           const card=(b.card||"yellow").toLowerCase();
-          // Apenas cartão VERMELHO direto conta como vermelho; segundo amarelo é só amarelo
           if(card==="red"||card==="direct red")rc++;
-          else yc++; // yellow, second yellow
+          else yc++;
         });
       });
       teamStats.push({...t,yc,rc});
@@ -881,7 +966,7 @@ function renderStats(){
   const defH=topDef.filter(t=>t.j>0).length?topDef.filter(t=>t.j>0).map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) · GP ${t.gp}</div></div><div class="li-val" style="color:var(--green)">${t.gc}</div></div>`).join(""):'<div class="empty">Aguardando jogos</div>';
 
   const disH=topDis.length?topDis.map((t,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${fl(t.nm)}</div><div class="li-inf"><div class="li-nm">${pt(t.nm)}</div><div class="li-sb">${t.j} jogo(s) · 🟨${t.yc} 🟥${t.rc}</div></div><div class="li-cards">${"<span class='yc'></span>".repeat(Math.min(t.yc,8))}${"<span class='rc'></span>".repeat(Math.min(t.rc,3))}</div></div>`).join("")
-    :'<div class="no-data" style="font-size:11px">Dados de cartões via openfootball.<br>Disponíveis após atualização do repositório.</div>';
+    :'<div class="no-data" style="font-size:11px">Cartões disponíveis via football-data.org e openfootball.<br>Toque em 🔄 para atualizar.</div>';
 
   return`<div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
@@ -951,7 +1036,7 @@ function render(){
 async function loadAll(){
   const btn=document.getElementById("refreshBtn");
   btn.classList.add("spin");
-  await Promise.all([fetchOFB(),fetchWC(),fetchFD()]);
+  await Promise.all([fetchOFB(),fetchWC(),fetchFD(),fetchFDMatches()]);
   render();
   const now=new Date();
   const src=ofbOk?"✓ openfootball":wcOk?"✓ worldcup26.ir":"⚠ sem dados";
