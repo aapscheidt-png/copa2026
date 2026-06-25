@@ -146,99 +146,32 @@ function espnDatesToFetchV18(){
   return out.slice(-35);
 }
 
-
-const ESPN_CACHE_KEY_V22="copa2026_espn_v22";
-let espnCacheUsedV22=false;
-
-function saveEspnCacheV22(){
-  try{
-    localStorage.setItem(ESPN_CACHE_KEY_V22,JSON.stringify({
-      savedAt:Date.now(),
-      events:ESPN_EVENTS,
-      summaries:ESPN_SUMMARIES
-    }));
-  }catch(e){}
-}
-
-function loadEspnCacheV22(){
-  try{
-    const raw=localStorage.getItem(ESPN_CACHE_KEY_V22);
-    if(!raw)return false;
-    const c=JSON.parse(raw);
-    if(!c||!Array.isArray(c.events)||!c.events.length)return false;
-    ESPN_EVENTS=c.events||[];
-    ESPN_SUMMARIES=c.summaries||{};
-    espnOk=true;
-    espnCacheUsedV22=true;
-    return true;
-  }catch(e){return false;}
-}
-
-async function mapLimitV22(items,limit,worker){
-  const out=[];
-  let cursor=0;
-  async function run(){
-    while(cursor<items.length){
-      const i=cursor++;
-      try{out[i]=await worker(items[i],i);}catch(e){out[i]=null;}
-    }
-  }
-  await Promise.all(Array.from({length:Math.min(limit,items.length||1)},run));
-  return out;
-}
-
 async function fetchStaticESPN(){
-  // Mantém o último conjunto completo visível enquanto a atualização acontece.
-  if(!ESPN_EVENTS.length)loadEspnCacheV22();
+  ESPN_EVENTS=[];
+  ESPN_SUMMARIES={};
 
   const dates=espnDatesToFetchV18();
-  const freshEvents=[];
 
-  // Primeiro tenta uma consulta por intervalo, muito mais rápida que uma data por vez.
-  const first=dates[0], last=dates[dates.length-1];
-  const range=await espnFetchJson(`${ESPN}/scoreboard?dates=${first}-${last}&limit=300`);
-
-  if(range&&Array.isArray(range.events)){
-    range.events.forEach(ev=>{
-      if(!freshEvents.find(x=>String(x.id)===String(ev.id)))freshEvents.push(ev);
-    });
+  for(const ds of dates){
+    const url=`${ESPN}/scoreboard?dates=${ds}&limit=200`;
+    const d=await espnFetchJson(url);
+    if(d&&Array.isArray(d.events)){
+      d.events.forEach(ev=>{
+        if(!ESPN_EVENTS.find(x=>String(x.id)===String(ev.id)))ESPN_EVENTS.push(ev);
+      });
+    }
   }
-
-  // Se o intervalo não for aceito pela fonte, consulta as datas em paralelo.
-  if(!freshEvents.length){
-    const batches=await mapLimitV22(dates,5,ds=>
-      espnFetchJson(`${ESPN}/scoreboard?dates=${ds}&limit=200`)
-    );
-    batches.forEach(d=>{
-      if(d&&Array.isArray(d.events)){
-        d.events.forEach(ev=>{
-          if(!freshEvents.find(x=>String(x.id)===String(ev.id)))freshEvents.push(ev);
-        });
-      }
-    });
-  }
-
-  if(freshEvents.length)ESPN_EVENTS=freshEvents;
 
   const needsSummary=ESPN_EVENTS
     .filter(e=>(e.status?.type?.state||"")!=="pre")
-    .slice(-80);
+    .slice(-60);
 
-  const summaries=await mapLimitV22(needsSummary,5,async ev=>{
-    const existing=ESPN_SUMMARIES[String(ev.id)];
-    const fresh=await espnFetchJson(`${ESPN}/summary?event=${ev.id}`);
-    return [String(ev.id),fresh||existing||null];
-  });
-
-  summaries.forEach(pair=>{
-    if(pair&&pair[1])ESPN_SUMMARIES[pair[0]]=pair[1];
-  });
+  for(const ev of needsSummary){
+    const s=await espnFetchJson(`${ESPN}/summary?event=${ev.id}`);
+    if(s)ESPN_SUMMARIES[String(ev.id)]=s;
+  }
 
   espnOk=ESPN_EVENTS.length>0;
-  if(espnOk){
-    espnCacheUsedV22=false;
-    saveEspnCacheV22();
-  }
   return espnOk;
 }
 
@@ -1122,7 +1055,7 @@ function renderStats(){
   const yellowPlayers=[...Object.values(cardPlayers)].sort((a,b)=>b.yc-a.yc||b.rc-a.rc||a.name.localeCompare(b.name)).filter(p=>p.yc>0);
   const redPlayers=[...Object.values(cardPlayers)].sort((a,b)=>b.rc-a.rc||b.yc-a.yc||a.name.localeCompare(b.name)).filter(p=>p.rc>0);
 
-  // Artilheiros - V22 Stats Completas
+  // Artilheiros - V21 Stats Hotfix
   // Correção: a V20 contava alguns gols duas vezes.
   // Primeiro contava os gols vindos do openfootball e depois recontava os mesmos
   // dentro de allGoalsForMatchV9(). Agora o ranking nasce de uma única lista
@@ -1185,7 +1118,7 @@ function renderStats(){
   const yellowTable=yellowPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Amarelos</th></tr></thead><tbody>${yellowPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.yc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões amarelos registrados</div>';
   const redTable=redPlayers.length?`<table class="disc-table"><thead><tr><th>Jogador</th><th>Seleção</th><th>Vermelhos</th></tr></thead><tbody>${redPlayers.map((p,i)=>`<tr><td><div class="disc-team"><span class="disc-rk${i<3?" top":""}">${i+1}</span><span class="disc-name">${p.name}</span></div></td><td>${teamFlag(p.team)}</td><td>${p.rc}</td></tr>`).join("")}</tbody></table>`:'<div class="no-data">Sem cartões vermelhos registrados</div>';
 
-  return`<div class="stats-version">✓ V22 Stats Completas · gols, cartões e estatísticas restaurados</div>
+  return`<div class="stats-version">✓ V21 Stats Hotfix · ESPN automático · artilheiros corrigidos · cartões sem pontos</div>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-n">${played}</div><div class="kpi-l">Jogos realizados</div></div>
   <div class="kpi"><div class="kpi-n" style="color:${liveNow?"var(--live)":"var(--gold)"}">${liveNow}</div><div class="kpi-l">Ao vivo agora</div></div>
@@ -1243,7 +1176,7 @@ function renderStats(){
   <tr><td>Seleções</td><td>48 · 12 grupos de 4</td></tr>
   <tr><td>Total de jogos</td><td>104</td></tr>
   <tr><td>Final</td><td>19 Jul · MetLife, Nova York</td></tr>
-  <tr><td>Versão</td><td style="color:var(--gold)">V22 Stats Completas</td></tr>
+  <tr><td>Versão</td><td style="color:var(--gold)">V21 Stats Hotfix</td></tr>
 </table></div>`;
 }
 
@@ -1253,80 +1186,19 @@ function teamStatsV12(team){
   const played=games.filter(m=>{const d=mData(m);return mSt(m)==="finished"&&d&&d.hasScore;});
   const live=games.filter(m=>mSt(m)==="live");
   const next=games.find(m=>mSt(m)==="upcoming");
-  const s={j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,next,live:live[0]||null,goals:[],cards:[],matches:[]};
-
+  const s={j:0,v:0,e:0,d:0,gp:0,gc:0,sg:0,pts:0,next,live:live[0]||null,goals:[],cards:[]};
   played.forEach(m=>{
     const d=mData(m);const isH=m.h===team;const gf=+(isH?d.hs:d.as),ga=+(isH?d.as:d.hs);
     s.j++;s.gp+=gf;s.gc+=ga;s.sg+=gf-ga;
     if(gf>ga){s.v++;s.pts+=3;}else if(gf===ga){s.e++;s.pts++;}else{s.d++;}
   });
-
-  const seenGoals=new Set(), seenCards=new Set();
-
   games.filter(m=>mSt(m)!=="upcoming").forEach(m=>{
     const ofb=ofbMatch(m.h,m.a);
-    allGoalsForMatchV9(m,ofb).filter(g=>nm(g.team,team)).forEach(g=>{
-      const key=[m.id,canon(g.name||g.player||""),String(g.minute||g.time||"?").replace(/[^0-9+]/g,"")].join("|");
-      if(!seenGoals.has(key)){seenGoals.add(key);s.goals.push(g);}
-    });
-
+    allGoalsForMatchV9(m,ofb).filter(g=>nm(g.team,team)).forEach(g=>s.goals.push(g));
     const side=m.h===team?"home":"away";
-    cardsForMatch(m,side).forEach(c=>{
-      const key=[m.id,canon(c.name||c.player||""),String(c.minute||c.time||"?").replace(/[^0-9+]/g,""),cardType(c)].join("|");
-      if(!seenCards.has(key)){seenCards.add(key);s.cards.push(c);}
-    });
-
-    const d=mData(m);
-    s.matches.push({
-      match:m,
-      data:d,
-      stats:espnTeamStatsFor(m),
-      state:mSt(m)
-    });
+    cardsForMatch(m,side).forEach(c=>s.cards.push(c));
   });
-
   return s;
-}
-
-
-function brazilMatchStatsHtmlV22(s){
-  const played=s.matches.filter(x=>x.state!=="upcoming");
-  if(!played.length)return '<div class="no-data">Aguardando jogos do Brasil</div>';
-
-  return played.map(x=>{
-    const m=x.match,d=x.data||{};
-    const isH=m.h==="Brazil";
-    const opp=isH?m.a:m.h;
-    const gf=isH?d.hs:d.as, ga=isH?d.as:d.hs;
-    const st=x.stats;
-    const homeStats=st?.home||{}, awayStats=st?.away||{};
-    const mine=isH?homeStats:awayStats;
-    const other=isH?awayStats:homeStats;
-
-    const rows=[
-      ["Posse",mine.possession,other.possession,"%"],
-      ["Chutes",mine.shots,other.shots,""],
-      ["Chutes a gol",mine.shotsOnGoal,other.shotsOnGoal,""],
-      ["Escanteios",mine.corners,other.corners,""],
-      ["Faltas",mine.fouls,other.fouls,""],
-      ["Impedimentos",mine.offsides,other.offsides,""],
-      ["Amarelos",mine.yellowCards,other.yellowCards,""],
-      ["Vermelhos",mine.redCards,other.redCards,""]
-    ].filter(r=>r[1]!==null&&r[1]!==undefined&&r[2]!==null&&r[2]!==undefined);
-
-    const statRows=rows.length?rows.map(r=>`
-      <div class="pro-row">
-        <div class="pro-v" style="min-width:38px;text-align:left">${r[1]}${r[3]}</div>
-        <div class="pro-l" style="text-align:center;flex:1">${r[0]}</div>
-        <div class="pro-v" style="min-width:38px;text-align:right">${r[2]}${r[3]}</div>
-      </div>`).join(""):'<div class="no-data">Estatísticas detalhadas ainda não entregues pela fonte</div>';
-
-    return `<div class="pro-card">
-      <div class="pro-title">${fl("Brazil")} Brasil ${gf??"-"} x ${ga??"-"} ${pt(opp)} ${fl(opp)}</div>
-      <div class="kpi-sub" style="margin-bottom:8px">${fmtD(m.d)} · ${m.v||""}</div>
-      ${statRows}
-    </div>`;
-  }).join("");
 }
 
 function renderBrasil(){
@@ -1341,7 +1213,7 @@ function renderBrasil(){
   const goalsH=s.goals.length?s.goals.map((g,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">⚽</div><div class="li-inf"><div class="li-nm">${g.name||"-"}</div><div class="li-sb">${g.minute||"?"}' · ${pt(g.team)}</div></div></div>`).join(""):'<div class="no-data">Sem gols cadastrados</div>';
   const cardsH=s.cards.length?s.cards.map((c,i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">${cardType(c)==="red"?"🟥":"🟨"}</div><div class="li-inf"><div class="li-nm">${c.name||c.player||"-"}</div><div class="li-sb">${c.minute||"?"}'</div></div></div>`).join(""):'<div class="no-data">Sem cartões cadastrados</div>';
 
-  return `<div class="pro-badge">✓ V22 Stats Completas · base única carregada</div>
+  return `<div class="pro-badge">✓ V21 Stats Hotfix · base única carregada</div>
   <div class="team-hero">
     <div class="team-hero-title">${fl(team)} Brasil</div>
     <div class="team-hero-sub">Grupo C · ${prof.notes||"Painel dedicado da seleção"}</div>
@@ -1362,12 +1234,8 @@ function renderBrasil(){
     <div class="pro-row"><div class="pro-l">Saldo</div><div class="pro-v">${s.sg>0?"+":""}${s.sg}</div></div>
   </div>
 
-  <div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>GOLS DO BRASIL</h3><span class="api-src">${espnOk?"ESPN":ofbOk?"openfootball":"cache"}</span></div>${goalsH}</div>
-  <div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>CARTÕES DO BRASIL</h3><span class="api-src">${espnOk?"ESPN":espnCacheUsedV22?"cache":"aguardando"}</span></div>${cardsH}</div>
-
-  <div class="list-blk"><div class="lb-hdr"><span class="lhi">📊</span><h3>RESULTADOS E ESTATÍSTICAS</h3><span class="api-src">${espnOk?"ESPN":espnCacheUsedV22?"cache":"parcial"}</span></div>
-    ${brazilMatchStatsHtmlV22(s)}
-  </div>
+  <div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>GOLS DO BRASIL</h3><span class="api-src">ESPN/free</span></div>${goalsH}</div>
+  <div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>CARTÕES DO BRASIL</h3><span class="api-src">ESPN/free</span></div>${cardsH}</div>
 
   <div class="pro-card">
     <div class="pro-title">🧮 Simulador rápido do Grupo C</div>
@@ -1697,11 +1565,10 @@ async function loadAll(){
   const btn=document.getElementById("refreshBtn");
   if(btn)btn.classList.add("spin");
 
-  if(!ESPN_EVENTS.length)loadEspnCacheV22();
   render();
 
   await Promise.allSettled([
-    safeRunV6(fetchStaticESPN,18000),
+    safeRunV6(fetchStaticESPN,3500),
     safeRunV6(fetchWCGames,3500),
     safeRunV6(fetchWCGroups,3500),
     safeRunV6(fetchWCScorers,3500),
@@ -1713,7 +1580,7 @@ async function loadAll(){
 
   const now=new Date();
   const liveEspn=F.some(m=>espnDataFor(m)?.st==="live");
-  const src=espnOk?(espnCacheUsedV22?"✓ ESPN em cache":"✓ ESPN direto"):wcOk?"✓ worldcup26.ir":ofbOk?"✓ openfootball":"✓ aguardando fonte gratuita";
+  const src=espnOk?"✓ ESPN direto":wcOk?"✓ worldcup26.ir":"✓ aguardando fonte gratuita";
   const upd=document.getElementById("updLbl");
   if(upd)upd.textContent=`${src} - ${now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`;
   document.getElementById("apiWarn")?.classList.remove("on");
@@ -1722,4 +1589,4 @@ async function loadAll(){
 function scheduleRefresh(){const lc=liveCount();const delay=lc>0?30000:300000;setTimeout(()=>{loadAll().then(scheduleRefresh);},delay);}
 loadAll().then(scheduleRefresh);
 
-console.log('Copa 2026 V22 Stats Completas carregado');
+console.log('Copa 2026 V21 Stats Hotfix carregado');
