@@ -617,58 +617,38 @@ function renderBrasil(){
     </div>`;
   }
 
-  // Cartões do Brasil via FD
+  // Cartões do Brasil via worldcup26.ir
   let brYC=0,brRC=0;
-  const brCardPlayers={};
   brGroupMatches.forEach(m=>{
-    const fd=fdMatch(m.h,m.a);if(!fd)return;
-    const isBRhome=m.h==="Brazil";
-    (fd.bookings||[]).forEach(b=>{
-      const teamName=canon(b.team?.name||"");
-      if(teamName!=="Brazil")return;
-      const card=(b.card||"").toUpperCase();
-      if(card.includes("RED"))brRC++;
-      else brYC++;
-      const pn=b.player?.name||"?";
-      if(!brCardPlayers[pn])brCardPlayers[pn]={name:pn,yc:0,rc:0};
-      if(card.includes("RED"))brCardPlayers[pn].rc++;
-      else brCardPlayers[pn].yc++;
-    });
+    const wc=wcGame(m.h,m.a);if(!wc)return;
+    const isH=m.h==="Brazil";
+    brYC+=isH ? +(wc.home_yellow_cards||wc.home_yellows||0) : +(wc.away_yellow_cards||wc.away_yellows||0);
+    brRC+=isH ? +(wc.home_red_cards||wc.home_reds||0) : +(wc.away_red_cards||wc.away_reds||0);
   });
-  const brCardList=Object.values(brCardPlayers).sort((a,b)=>(b.yc+b.rc*3)-(a.yc+a.rc*3));
-  let brCardsHTML="";
-  if(brYC+brRC>0){
-    brCardsHTML=`<div class="list-blk">
-  <div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA DO BRASIL</h3><span class="api-src">✓ football-data.org</span></div>
+  let brCardsHTML=`<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA DO BRASIL</h3><span class="api-src">${wcOk?"✓ worldcup26.ir":"aguardando..."}</span></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 13px">
-    <div class="mi"><div class="mi-val" style="color:var(--ycard)">${brYC}</div><div class="mi-lbl">Amarelos</div></div>
-    <div class="mi"><div class="mi-val" style="color:var(--live)">${brRC}</div><div class="mi-lbl">Vermelhos</div></div>
+    <div class="mi"><div class="mi-val" style="color:var(--ycard)">${brYC}</div><div class="mi-lbl">🟨 Amarelos</div></div>
+    <div class="mi"><div class="mi-val" style="color:var(--live)">${brRC}</div><div class="mi-lbl">🟥 Vermelhos</div></div>
   </div>
-  ${brCardList.map(p=>`<div class="li"><div class="li-fl">🇧🇷</div><div class="li-inf"><div class="li-nm">${p.name}</div><div class="li-sb">${p.yc>0?"🟨".repeat(p.yc):""}${p.rc>0?"🟥".repeat(p.rc):""}</div></div></div>`).join("")}
+  <div style="padding:9px 13px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--text3)">Amarelos zerados após grupos e após quartas de final.</div>
 </div>`;
-  }else{brCardsHTML="";}
 
-  // Assistências do Brasil via FD
+  // Assistências do Brasil via OFB
   const brAssists={};
   brGroupMatches.forEach(m=>{
-    const fd=fdMatch(m.h,m.a);if(!fd)return;
-    const isBRhome=m.h==="Brazil";
-    (fd.goals||[]).forEach(g=>{
-      const teamName=canon(g.team?.name||"");
-      if(teamName!=="Brazil")return;
-      const an=g.assist?.name;
-      if(!an)return;
-      brAssists[an]=(brAssists[an]||0)+1;
+    const ofb=ofbMatch(m.h,m.a);if(!ofb)return;
+    const isH=m.h==="Brazil";
+    const goals=isH?(ofb.goals1||[]):(ofb.goals2||[]);
+    goals.filter(g=>!g.owngoal&&g.assist).forEach(g=>{
+      brAssists[g.assist]=(brAssists[g.assist]||0)+1;
     });
   });
   const brAssistList=Object.entries(brAssists).sort((a,b)=>b[1]-a[1]);
-  let brAssistsHTML="";
-  if(brAssistList.length){
-    brAssistsHTML=`<div class="list-blk">
-  <div class="lb-hdr"><span class="lhi">🎯</span><h3>ASSISTÊNCIAS DO BRASIL</h3><span class="api-src">✓ football-data.org</span></div>
+  let brAssistsHTML=brAssistList.length?`<div class="list-blk">
+  <div class="lb-hdr"><span class="lhi">🎯</span><h3>ASSISTÊNCIAS DO BRASIL</h3><span class="api-src">✓ openfootball</span></div>
   ${brAssistList.map(([n,a],i)=>`<div class="li"><div class="li-rk${i<3?" top":""}">${i+1}</div><div class="li-fl">🇧🇷</div><div class="li-inf"><div class="li-nm">${n}</div></div><div class="li-val">${a} 🎯</div></div>`).join("")}
-</div>`;
-  }
+</div>`:"";
 
   // Stats do Brasil
   let totalBrGols=0,brContra=0;
@@ -917,32 +897,25 @@ function renderStats(){
     sList=FD_SC.slice(0,15).map(s=>({name:s.player?.name||"—",goals:s.goals||0,pen:s.penalties||0,team:canon(s.team?.name||"")}));
   }
 
-  // Stats de times — cartões via FD (mais completo) ou OFB
+  // Stats de times — cartões via worldcup26.ir (yellow/red_cards por jogo)
   let teamStats=[];
   ["A","B","C","D","E","F","G","H","I","J","K","L"].forEach(gl=>{
     calcGroup(gl).filter(t=>t.j>0).forEach(t=>{
       let yc=0,rc=0;
       F.filter(m=>m.g===gl&&m.ph==="grupos").forEach(m=>{
-        // Tenta FD primeiro (mais confiável para cartões)
-        const fd=fdMatch(m.h,m.a);
-        if(fd&&fd.bookings&&fd.bookings.length>0){
-          fd.bookings.forEach(b=>{
-            const teamName=canon(b.team?.name||"");
-            if(teamName!==t.nm)return;
-            const card=(b.card||"").toUpperCase();
-            if(card.includes("RED"))rc++;
-            else yc++;
-          });
+        const wc=wcGame(m.h,m.a);
+        if(wc){
+          const isH=m.h===t.nm;
+          yc+=isH ? +(wc.home_yellow_cards||wc.home_yellows||0) : +(wc.away_yellow_cards||wc.away_yellows||0);
+          rc+=isH ? +(wc.home_red_cards||wc.home_reds||0) : +(wc.away_red_cards||wc.away_reds||0);
           return;
         }
-        // Fallback: OFB bookings
         const ofb=ofbMatch(m.h,m.a);if(!ofb||!ofb.score)return;
         const isH=m.h===t.nm;
         const bk=isH?(ofb.bookings1||[]):(ofb.bookings2||[]);
         bk.forEach(b=>{
           const card=(b.card||"yellow").toLowerCase();
-          if(card==="red"||card==="direct red")rc++;
-          else yc++;
+          if(card==="red"||card==="direct red")rc++; else yc++;
         });
       });
       teamStats.push({...t,yc,rc});
@@ -985,7 +958,7 @@ function renderStats(){
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">⚽</span><h3>ARTILHEIROS</h3><span class="api-src">${sList.length?"✓ "+src:"aguardando..."}</span></div>${sH}</div>
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">🥅</span><h3>MAIORES ATAQUES</h3><span class="api-src">${played>0?"✓ "+src:"aguardando..."}</span></div>${atkH}</div>
 <div class="list-blk"><div class="lb-hdr"><span class="lhi">🛡️</span><h3>MELHORES DEFESAS</h3><span class="api-src">${played>0?"✓ "+src:"aguardando..."}</span></div>${defH}</div>
-<div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA</h3><span class="api-src">${topDis.length?"✓ openfootball":"aguardando..."}</span></div>
+<div class="list-blk"><div class="lb-hdr"><span class="lhi">🟨</span><h3>DISCIPLINA</h3><span class="api-src">${topDis.length?"✓ worldcup26.ir":"aguardando..."}</span></div>
   ${disH}
   ${topDis.length?'<div style="padding:9px 13px;border-top:1px solid var(--border2);font-family:\'Barlow Condensed\',sans-serif;font-size:11px;color:var(--text3)">🟨 2 amarelos acumulados = suspensão · 🟥 Vermelho direto = próximo jogo suspenso</div>':""}
 </div>
